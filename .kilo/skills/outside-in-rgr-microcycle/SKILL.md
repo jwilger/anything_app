@@ -26,7 +26,7 @@ Next control owner:
 
 ## RED
 
-RED is valid when a focused command was run and produced an observed failure that is expected for the requested behavior. Compiler errors count as RED when the test intentionally pressures a missing API, missing type, or crate boundary.
+RED is valid when a focused command was run and produced an observed failure that is expected for the requested behavior. Compile errors count as RED when the test intentionally pressures a missing module, context API, command, event, schema, or boundary.
 
 Fix test misuse before production edits. Do not treat accidental misuse of existing code as implementation pressure.
 

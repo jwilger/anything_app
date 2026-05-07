@@ -4,7 +4,7 @@
     "AGENTS.md",
     ".kilo/rules/*.md"
   ],
-  "default_agent": "auto-review-rust-implementer",
+  "default_agent": "phoenix-commanded-implementer",
   "plugin": [
     "kilo-rtk@npm:@jwilger/kilo-rtk"
   ],
@@ -14,35 +14,25 @@
       "command": [
         "sh",
         "-lc",
-        "exec forgejo-mcp --transport stdio --url https://git.johnwilger.com --token \"$FORGEJO_TOKEN\" --user-agent auto_review/forgejo-mcp"
+        "exec forgejo-mcp --transport stdio --url https://git.johnwilger.com --token \"$FORGEJO_TOKEN\" --user-agent anything_app/forgejo-mcp"
       ],
       "environment": {
-        "FORGEJO_USER_AGENT": "auto_review/forgejo-mcp"
+        "FORGEJO_USER_AGENT": "anything_app/forgejo-mcp"
       },
       "enabled": true,
       "timeout": 10000
     }
   },
   "lsp": {
-    "rust": {
+    "elixir": {
       "command": [
-        "nix",
-        "develop",
-        ".",
-        "--command",
-        "rust-analyzer"
+        "elixir-ls"
       ],
       "extensions": [
-        "rs"
-      ],
-      "initialization": {
-        "cargo": {
-          "allFeatures": true
-        },
-        "check": {
-          "command": "clippy"
-        }
-      }
+        "ex",
+        "exs",
+        "heex"
+      ]
     }
   },
   "skills": {

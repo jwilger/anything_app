@@ -1,6 +1,6 @@
 ---
 description: Run a fine-grained outside-in RGR workflow with specialist agents.
-agent: auto-review-rust-implementer
+agent: phoenix-commanded-implementer
 ---
 
 Run the specialist outside-in RGR workflow for: $ARGUMENTS

@@ -17,14 +17,14 @@ export function normalizePath(path: string): string {
   return path.replaceAll("\\", "/");
 }
 
-export function isProductionRustPath(path: string): boolean {
+export function isProductionElixirPath(path: string): boolean {
   const normalized = normalizePath(path);
-  return /(^|\/)crates\/[^/]+\/src\/.*\.rs$/.test(normalized);
+  return /(^|\/)lib\/.*\.(ex|heex)$/.test(normalized) || /(^|\/)priv\/repo\/migrations\/.*\.exs$/.test(normalized);
 }
 
 export function isLikelyTestPath(path: string): boolean {
   const normalized = normalizePath(path);
-  return /(^|\/)(tests|benches)\//.test(normalized) || /(^|\/)crates\/[^/]+\/tests\//.test(normalized);
+  return /(^|\/)test\/.*_test\.exs$/.test(normalized) || /(^|\/)test\/support\//.test(normalized) || /(^|\/)test\/test_helper\.exs$/.test(normalized);
 }
 
 export function isNonBehavioralPath(path: string): boolean {
@@ -45,14 +45,20 @@ export function blocksForgejoInlineReply(command: string): boolean {
 
 export function blocksUnsafeToolchainCommand(command: string): boolean {
   const checks = [
-    /(^|\s)rustup(\s|$)/,
-    /(^|\s)git\s+add\s+(-A|-u|\.)(\s|$)/,
-    /(^|\s)git\s+commit\s+[^\n]*\s-a(\s|$)/,
+    /(^|\s)mix\s+archive\.install\b/,
+    /(^|\s)mix\s+local\.(hex|rebar)\b/,
+    /(^|\s)npm\s+(install|i)\b[^\n]*(\s-g|\s--global)(\s|$)/,
+    /(^|\s)yarn\s+global\s+add\b/,
+    /(^|\s)pnpm\s+(add|install)\b[^\n]*(\s-g|\s--global)(\s|$)/,
+    /(^|\s)(asdf|mise|rtx)\s+global\b/,
+    /(^|\s)(mise|rtx)\s+use\s+(-g|--global)\b/,
+    /(^|\s)git\s+add\s+(-A|-u|\.|--all|--update)(\s|$)/,
+    /(^|\s)git\s+commit\s+[^\n]*(\s-a\w*|\s--all)(\s|$)/,
     /--no-verify\b/,
     /--no-gpg-sign\b/,
     /(^|\s)git\s+reset\s+--hard\b/,
     /(^|\s)git\s+checkout\s+--\b/,
-    /(^|\s)git\s+push\s+[^\n]*--force\b/,
+    /(^|\s)git\s+push\s+[^\n]*(--force|--force-with-lease)\b/,
   ];
   return checks.some((check) => check.test(command));
 }

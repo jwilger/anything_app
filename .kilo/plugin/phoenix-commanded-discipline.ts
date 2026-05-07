@@ -1,5 +1,5 @@
 import { tool, type Plugin } from "@kilocode/plugin";
-import { getCycle, isNonBehavioralPath, isProductionRustPath, isLikelyTestPath, recordTouchedFile, setCycle, clearCycle, recordVerification, sessionContext } from "./lib/shared.ts";
+import { getCycle, isNonBehavioralPath, isProductionElixirPath, isLikelyTestPath, recordTouchedFile, setCycle, clearCycle, recordVerification, sessionContext } from "./lib/shared.ts";
 
 function filePathFromArgs(args: unknown): string | undefined {
   if (!args || typeof args !== "object") return undefined;
@@ -14,15 +14,29 @@ function isEditTool(toolID: string): boolean {
 
 function rejectsWaterfallTodo(args: unknown): boolean {
   const text = JSON.stringify(args ?? "").toLowerCase();
-  const componentWords = ["model", "handler", "route", "repository", "service", "then add tests"];
+  const componentWords = [
+    "schema",
+    "migration",
+    "controller",
+    "liveview",
+    "component",
+    "context",
+    "command",
+    "event",
+    "aggregate",
+    "projector",
+    "process manager",
+    "handler",
+    "then add tests",
+  ];
   const hasComponents = componentWords.filter((word) => text.includes(word)).length >= 2;
   return hasComponents && !text.includes("red") && !text.includes("failing test") && !text.includes("rgr");
 }
 
-export const AutoReviewDisciplinePlugin: Plugin = async () => ({
+export const PhoenixCommandedDisciplinePlugin: Plugin = async () => ({
   tool: {
     rgr_start: tool({
-      description: "Start an auto_review RED-GREEN-REFACTOR cycle for one behavior.",
+      description: "Start a RED-GREEN-REFACTOR cycle for one behavior.",
       args: {
         behavior: tool.schema.string().describe("Observable behavior under test"),
         test: tool.schema.string().describe("Specific failing test name or path"),
@@ -78,10 +92,10 @@ export const AutoReviewDisciplinePlugin: Plugin = async () => ({
     if (isEditTool(input.tool)) {
       const path = filePathFromArgs(output.args);
       if (path) recordTouchedFile(input.sessionID, path);
-      if (path && isProductionRustPath(path) && !isLikelyTestPath(path) && !isNonBehavioralPath(path)) {
+      if (path && isProductionElixirPath(path) && !isLikelyTestPath(path) && !isNonBehavioralPath(path)) {
         const current = getCycle(input.sessionID);
         if (!current?.failingOutput) {
-          throw new Error("RGR gate: production Rust edits under crates/*/src require observed RED output recorded with rgr_record_red.");
+          throw new Error("RGR gate: production Elixir/Phoenix/Commanded edits under lib/** or priv/repo/migrations require observed RED output recorded with rgr_record_red.");
         }
       }
     }
@@ -94,4 +108,4 @@ export const AutoReviewDisciplinePlugin: Plugin = async () => ({
   },
 });
 
-export default AutoReviewDisciplinePlugin;
+export default PhoenixCommandedDisciplinePlugin;

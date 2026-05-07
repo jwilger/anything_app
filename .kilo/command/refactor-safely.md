@@ -1,6 +1,6 @@
 ---
 description: Refactor with a green baseline and focused verification.
-agent: auto-review-rust-implementer
+agent: phoenix-commanded-implementer
 ---
 
 Refactor safely: $ARGUMENTS

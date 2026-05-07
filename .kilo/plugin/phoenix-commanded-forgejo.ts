@@ -1,7 +1,7 @@
 import { tool, type Plugin } from "@kilocode/plugin";
 import { blocksForgejoInlineReply, commandText, forgejoInlineReplyPayload, recordForgejoFeedback } from "./lib/shared.ts";
 
-export const AutoReviewForgejoPlugin: Plugin = async () => ({
+export const PhoenixCommandedForgejoPlugin: Plugin = async () => ({
   tool: {
     forgejo_inline_reply_payload: tool({
       description: "Build the Forgejo inline review reply payload using comment.position as new_position.",
@@ -42,4 +42,4 @@ export const AutoReviewForgejoPlugin: Plugin = async () => ({
   },
 });
 
-export default AutoReviewForgejoPlugin;
+export default PhoenixCommandedForgejoPlugin;
