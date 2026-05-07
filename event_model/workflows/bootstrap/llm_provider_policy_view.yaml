@@ -1,0 +1,50 @@
+slice: llm_provider_policy_view
+type: state_view
+workflow: bootstrap
+summary: Provides non-secret provider/model policy metadata for LLM purposes.
+owners:
+  context: Anything.LLM
+read_model:
+  name: LLMProviderPolicy
+  table: llm_provider_policies
+  fields:
+    policy_id: {type: string!, pk: true}
+    purpose: {type: string!}
+    provider: {type: string!}
+    model: {type: string!}
+    secret_ref: {type: string!}
+    timeout_ms: {type: integer!}
+    token_budget: {type: integer!}
+    temperature: {type: decimal!}
+    streaming: {type: boolean!}
+    retry_policy: {type: string!}
+    output_schema: {type: string!}
+projects_from:
+  - event: LLMProviderPolicyDefined
+    action: upsert
+    where: {policy_id: event.policy_id}
+    map:
+      policy_id: event.policy_id
+      purpose: event.purpose
+      provider: event.provider
+      model: event.model
+      secret_ref: event.secret_ref
+      timeout_ms: event.timeout_ms
+      token_budget: event.token_budget
+      temperature: event.temperature
+      streaming: event.streaming
+      retry_policy: event.retry_policy
+      output_schema: event.output_schema
+queries:
+  by_purpose:
+    input: {purpose: string!}
+    returns: LLMProviderPolicy
+security:
+  forbidden_values: [api_key, token, password, secret_value]
+scenarios:
+  registers_policy_without_secret_value:
+    given:
+      - 'LLMProviderPolicyDefined{policy_id: "model_patch_default", secret_ref: "env:ANYTHING_LLM_API_KEY"}'
+    then:
+      rows:
+        - policy_id: model_patch_default

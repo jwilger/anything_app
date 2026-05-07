@@ -1,0 +1,44 @@
+slice: record_model_patch_proposal
+type: state_change
+workflow: bootstrap
+summary: Records a schema-valid LLM event-model patch proposal.
+owners:
+  context: Anything.EventModel
+command:
+  name: RecordModelPatchProposal
+  module: Anything.Workflows.Bootstrap.Commands.RecordModelPatchProposal
+  fields:
+    patch_id: {type: uuid, source: system.uuid}
+    request_id: {type: uuid, source: external.request_id}
+    defect_id: {type: uuid, source: external.defect_id}
+    proposed_patch_artifact_id: {type: uuid, source: external.proposed_patch_artifact_id}
+    reasoning_summary: {type: string!, source: external.reasoning_summary}
+    affected_slices: {type: 'list[string]', source: external.affected_slices}
+    received_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.RecordModelPatchProposalAggregate
+  stream_id: patch_id
+  prefix: model_patch
+  pattern: single_aggregate_per_command
+  state:
+    proposed: {type: boolean, established_by: {ModelPatchProposed: true}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+events:
+  - name: ModelPatchProposed
+    version: 1
+    fields:
+      patch_id: {type: uuid, source: command.patch_id}
+      request_id: {type: uuid, source: command.request_id}
+      defect_id: {type: uuid, source: command.defect_id}
+      proposed_patch_artifact_id: {type: uuid, source: command.proposed_patch_artifact_id}
+      reasoning_summary: {type: string!, source: command.reasoning_summary}
+      affected_slices: {type: 'list[string]', source: command.affected_slices}
+      received_at: {type: utc_datetime, source: command.received_at}
+scenarios:
+  main_success:
+    given: ['LLMStructuredOutputAccepted{invocation_id: invocation-1}']
+    when: 'RecordModelPatchProposal{defect_id: defect-1}'
+    then: ['ModelPatchProposed{defect_id: defect-1}']

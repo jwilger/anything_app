@@ -1,0 +1,40 @@
+slice: defect_timeline_view
+type: state_view
+workflow: bootstrap
+summary: Projects every workflow event into a user-visible defect activity timeline.
+owners:
+  context: Anything.Defects
+  web: AnythingWeb.DefectConsoleLive
+read_model:
+  name: DefectTimeline
+  table: defect_timeline_entries
+  fields:
+    entry_id: {type: uuid, pk: true, source: system.uuid}
+    defect_id: {type: uuid}
+    event_name: {type: string!}
+    summary: {type: string!}
+    occurred_at: {type: utc_datetime}
+projects_from:
+  - event: DefectFiled
+    action: insert
+    map:
+      entry_id: system.uuid
+      defect_id: event.defect_id
+      event_name: "DefectFiled"
+      summary: event.description
+      occurred_at: event.filed_at
+screen:
+  name: DefectConsoleLive
+  uses_read_model: DefectTimeline
+  components:
+    - component: components.organisms.event_timeline
+      props:
+        entries: read_model.DefectTimeline.rows
+      accessibility: timeline_items_are_ordered_statuses
+scenarios:
+  projects_timeline_entry:
+    given:
+      - 'DefectFiled{description: "Missing count", expected_behavior: "Count appears"}'
+    then:
+      rows:
+        - event_name: DefectFiled

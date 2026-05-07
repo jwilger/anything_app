@@ -1,0 +1,36 @@
+slice: component_registry_view
+type: design_system
+workflow: bootstrap
+summary: Registry of internal Atomic Design components and searchable component evidence.
+owners:
+  context: Anything.DesignSystem
+component_registry:
+  name: ComponentRegistry
+  table: component_registry_entries
+  vector_table: component_registry_embeddings
+  entries:
+    - id: components.organisms.event_timeline
+      level: organism
+      purpose: Shows ordered workflow events.
+      props:
+        entries: {type: 'list[timeline_entry]'}
+      slots: []
+      composed_from: [components.atoms.status_badge]
+      accessibility: ordered_status_updates
+      style_owner: internal_component
+projects_from:
+  - event: ExistingComponentSelected
+    action: upsert
+    where: {component_id: event.component_id}
+    map:
+      component_id: event.component_id
+      last_decision_artifact_id: event.search_evidence_artifact_id
+      updated_at: event.decided_at
+retrieval_queries:
+  search:
+    input: {query: string!, max_items: integer}
+    returns: 'list[ComponentRegistry]'
+scenarios:
+  search_before_creation:
+    given: ['ComponentRegistrySearched{query: "timeline"}']
+    then: {requires_search_evidence: true}

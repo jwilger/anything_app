@@ -1,0 +1,48 @@
+slice: slice_catalog_view
+type: state_view
+workflow: bootstrap
+summary: Catalogs current event model slices for search and dependency checks.
+owners:
+  context: Anything.EventModel
+read_model:
+  name: SliceCatalog
+  table: slice_catalog_entries
+  fields:
+    slice: {type: string!, pk: true}
+    workflow: {type: string!}
+    type: {type: string!}
+    summary: {type: string!}
+    source_path: {type: string!}
+    updated_at: {type: utc_datetime}
+projects_from:
+  - event: EventModelInitialized
+    action: upsert
+    where: {slice: computed.slice_name}
+    map:
+      slice: computed.slice_name
+      workflow: computed.workflow
+      type: computed.slice_type
+      summary: computed.summary
+      source_path: computed.source_path
+      updated_at: event.initialized_at
+  - event: ModelPatchApplied
+    action: upsert
+    where: {slice: computed.slice_name}
+    map:
+      slice: computed.slice_name
+      workflow: computed.workflow
+      type: computed.slice_type
+      summary: computed.summary
+      source_path: computed.source_path
+      updated_at: event.applied_at
+queries:
+  semantic_search:
+    input: {query: string!, max_items: integer}
+    returns: 'list[SliceCatalog]'
+scenarios:
+  indexes_slice:
+    given:
+      - 'ModelPatchApplied{affected_slices: ["file_defect"]}'
+    then:
+      rows:
+        - slice: file_defect

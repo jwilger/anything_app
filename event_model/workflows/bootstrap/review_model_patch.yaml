@@ -1,0 +1,64 @@
+slice: review_model_patch
+type: state_change
+workflow: bootstrap
+summary: Captures explicit human or policy approval before applying model changes.
+owners:
+  context: Anything.EventModel
+screen:
+  name: ModelPatchReviewLive
+  inputs:
+    patch_id: {type: uuid, source: read_model.ModelPatchReview.patch_id}
+    decision: {type: 'enum[accepted, rejected]', source: user}
+    rationale: {type: string, source: user, optional: true}
+  actions:
+    accept_patch: {command: AcceptModelPatch, authorization: authenticated_user}
+    reject_patch: {command: RejectModelPatch, authorization: authenticated_user}
+commands:
+  - name: AcceptModelPatch
+    module: Anything.Workflows.Bootstrap.Commands.ReviewModelPatch
+  - name: RejectModelPatch
+    module: Anything.Workflows.Bootstrap.Commands.ReviewModelPatch
+command:
+  name: ReviewModelPatch
+  module: Anything.Workflows.Bootstrap.Commands.ReviewModelPatch
+  fields:
+    review_id: {type: uuid, source: system.uuid}
+    patch_id: {type: uuid, source: screen.patch_id}
+    decision: {type: 'enum[accepted, rejected]', source: screen.decision}
+    reviewer_id: {type: uuid, source: system.session.user_id}
+    rationale: {type: string, source: screen.rationale, optional: true}
+    reviewed_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.ReviewModelPatchAggregate
+  stream_id: patch_id
+  prefix: model_patch
+  pattern: single_aggregate_per_command
+  state:
+    reviewed: {type: boolean, established_by: {ModelPatchAccepted: true, ModelPatchRejected: true}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+events:
+  - name: ModelPatchAccepted
+    version: 1
+    when: command.decision == accepted
+    fields:
+      review_id: {type: uuid, source: command.review_id}
+      patch_id: {type: uuid, source: command.patch_id}
+      reviewer_id: {type: uuid, source: command.reviewer_id}
+      reviewed_at: {type: utc_datetime, source: command.reviewed_at}
+  - name: ModelPatchRejected
+    version: 1
+    when: command.decision == rejected
+    fields:
+      review_id: {type: uuid, source: command.review_id}
+      patch_id: {type: uuid, source: command.patch_id}
+      reviewer_id: {type: uuid, source: command.reviewer_id}
+      rationale: {type: string, source: command.rationale}
+      reviewed_at: {type: utc_datetime, source: command.reviewed_at}
+scenarios:
+  main_success:
+    given: ['CompletenessCheckPassed{patch_id: patch-1}']
+    when: 'AcceptModelPatch{patch_id: patch-1}'
+    then: ['ModelPatchAccepted{patch_id: patch-1}']

@@ -1,0 +1,28 @@
+slice: extract_learning_after_resolution
+type: automation
+workflow: bootstrap
+summary: Extracts reusable learnings after a defect is resolved.
+owners: {context: Anything.Memory}
+trigger: {type: event, event: DefectResolved}
+reads:
+  - read_model: DefectTimeline
+    query: by_defect
+computed:
+  learning_context: {inputs: [trigger.defect_id, reads.DefectTimeline.rows], output_type: context_package}
+  invocation_key: {inputs: [trigger.defect_id, computed.learning_context.hash], output_type: string}
+dispatches:
+  - command: RequestLLMInvocation
+    fields:
+      invocation_id: {source: system.uuid}
+      purpose: {source: literal.learning_extraction}
+      provider_policy: {source: read_model.LLMProviderPolicy.policy_id}
+      prompt_template: {source: read_model.PromptTemplateRegistry.template_id}
+      output_schema: {source: read_model.PromptTemplateRegistry.output_schema}
+      context_package_artifact_id: {source: computed.learning_context.artifact_id}
+      redaction_policy: {source: read_model.PromptTemplateRegistry.redaction_policy}
+      retry_policy: {source: read_model.LLMProviderPolicy.retry_policy}
+      idempotency_key: {source: computed.invocation_key}
+retry_policy: learning_extraction_default
+idempotency_key: trigger.defect_id
+scenarios:
+  main_success: {given: ['DefectResolved{defect_id: defect-1}'], then: ['RequestLLMInvocation{purpose: "learning_extraction"}']}

@@ -1,0 +1,33 @@
+slice: repair_invalid_llm_output
+type: automation
+workflow: bootstrap
+summary: Applies bounded format repair after structured LLM output rejection.
+owners: {context: Anything.LLM}
+trigger: {type: event, event: LLMStructuredOutputRejected}
+reads:
+  - read_model: LLMInvocationLog
+    query: by_invocation
+computed:
+  retry_allowed: {inputs: [trigger.errors, reads.LLMInvocationLog.retry_count], output_type: boolean}
+  repair_context: {inputs: [trigger.errors, trigger.invocation_id], output_type: context_package}
+  invocation_key: {inputs: [trigger.validation_id, computed.repair_context.hash], output_type: string}
+dispatches:
+  - command: RequestLLMInvocation
+    when: computed.retry_allowed == true
+    fields:
+      invocation_id: {source: system.uuid}
+      purpose: {source: literal.repair_format}
+      provider_policy: {source: read_model.LLMProviderPolicy.policy_id}
+      prompt_template: {source: read_model.PromptTemplateRegistry.template_id}
+      output_schema: {source: read_model.PromptTemplateRegistry.output_schema}
+      context_package_artifact_id: {source: computed.repair_context.artifact_id}
+      redaction_policy: {source: read_model.PromptTemplateRegistry.redaction_policy}
+      retry_policy: {source: read_model.LLMProviderPolicy.retry_policy}
+      idempotency_key: {source: computed.invocation_key}
+  - command: MarkDefectBlocked
+    when: computed.retry_allowed == false
+    fields: {reason: {source: trigger.errors}}
+retry_policy: bounded_by_invocation_policy
+idempotency_key: trigger.validation_id
+scenarios:
+  main_success: {given: ['LLMStructuredOutputRejected{invocation_id: invocation-1}'], then: ['RequestLLMInvocation{purpose: "repair_format"}']}

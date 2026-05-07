@@ -1,0 +1,62 @@
+slice: request_llm_invocation
+type: state_change
+workflow: bootstrap
+summary: Records a provider-level LLM request with policy, prompt, schema, redaction, and idempotency metadata.
+owners:
+  context: Anything.LLM
+command:
+  name: RequestLLMInvocation
+  module: Anything.Workflows.Bootstrap.Commands.RequestLLMInvocation
+  fields:
+    invocation_id: {type: uuid, source: system.uuid}
+    purpose: {type: string!, source: command_caller.purpose}
+    provider_policy: {type: string!, source: read_model.LLMProviderPolicy.policy_id}
+    prompt_template: {type: string!, source: read_model.PromptTemplateRegistry.template_id}
+    output_schema: {type: string!, source: read_model.PromptTemplateRegistry.output_schema}
+    context_package_artifact_id: {type: uuid, source: computed.context_package.artifact_id}
+    redaction_policy: {type: string!, source: read_model.PromptTemplateRegistry.redaction_policy}
+    retry_policy: {type: string!, source: read_model.LLMProviderPolicy.retry_policy}
+    idempotency_key: {type: string!, source: computed.invocation_key}
+    requested_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.RequestLLMInvocationAggregate
+  stream_id: invocation_id
+  prefix: llm_invocation
+  pattern: single_aggregate_per_command
+  state:
+    requested: {type: boolean, established_by: {LLMInvocationRequested: true}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+  command_idempotency_key: idempotency_key
+events:
+  - name: LLMInvocationRequested
+    version: 1
+    fields:
+      invocation_id: {type: uuid, source: command.invocation_id}
+      purpose: {type: string!, source: command.purpose}
+      provider_policy: {type: string!, source: command.provider_policy}
+      prompt_template: {type: string!, source: command.prompt_template}
+      output_schema: {type: string!, source: command.output_schema}
+      context_package_artifact_id: {type: uuid, source: command.context_package_artifact_id}
+      redaction_policy: {type: string!, source: command.redaction_policy}
+      retry_policy: {type: string!, source: command.retry_policy}
+      idempotency_key: {type: string!, source: command.idempotency_key}
+      requested_at: {type: utc_datetime, source: command.requested_at}
+llm:
+  purpose: model_patch
+  provider_policy: model_patch_default
+  prompt_template: prompts.model_patch.v1
+  output_schema: schemas.model_patch_response.v1
+  context_package: computed.context_package
+  streaming: true
+  retry_policy: llm_model_patch_default
+  redaction_policy: prompt_safe
+  idempotency_key: computed.invocation_key
+  stores_raw_response: artifact_reference_only
+scenarios:
+  main_success:
+    given: ['ModelPatchRequested{request_id: request-1}']
+    when: 'RequestLLMInvocation{purpose: "model_patch"}'
+    then: ['LLMInvocationRequested{purpose: "model_patch"}']

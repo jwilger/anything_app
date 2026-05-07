@@ -1,0 +1,27 @@
+slice: receive_embedding_response
+type: translation
+workflow: bootstrap
+summary: Translates embedding provider responses into memory index metadata.
+owners: {context: Anything.Memory}
+external_event:
+  boundary: embedding_provider
+  source: embedding.provider_response
+  idempotency_key: external.embedding_request_id
+  fields:
+    embedding_request_id: {type: uuid}
+    source_id: {type: uuid}
+    status: {type: 'enum[indexed, failed]'}
+    vector_artifact_id: {type: uuid, optional: true}
+    error: {type: map, optional: true}
+translates_to:
+  command: RecordEmbeddingResult
+  fields:
+    embedding_request_id: {source: external.embedding_request_id}
+    source_id: {source: external.source_id}
+    status: {source: external.status}
+    vector_artifact_id: {source: external.vector_artifact_id}
+    error: {source: external.error}
+    recorded_at: {source: system.clock}
+failure_handling: failed_embedding_is_retryable_by_policy
+scenarios:
+  main_success: {given: ['external.embedding.provider_response{status: "indexed"}'], then: ['RecordEmbeddingResult{status: "indexed"}']}

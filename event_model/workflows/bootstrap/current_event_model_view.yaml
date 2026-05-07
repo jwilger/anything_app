@@ -1,0 +1,43 @@
+slice: current_event_model_view
+type: state_view
+workflow: bootstrap
+summary: Provides the current event model snapshot for validators, prompts, and generators.
+owners:
+  context: Anything.EventModel
+read_model:
+  name: CurrentEventModel
+  table: current_event_models
+  fields:
+    model_id: {type: uuid, pk: true}
+    version: {type: integer!}
+    model_hash: {type: string!}
+    artifact_id: {type: uuid!}
+    updated_at: {type: utc_datetime}
+projects_from:
+  - event: EventModelInitialized
+    action: insert
+    map:
+      model_id: event.model_id
+      version: event.version
+      model_hash: event.model_hash
+      artifact_id: event.artifact_id
+      updated_at: event.initialized_at
+  - event: ModelPatchApplied
+    action: update
+    where: {model_id: event.model_id}
+    map:
+      version: event.new_version
+      model_hash: event.new_model_hash
+      artifact_id: event.model_artifact_id
+      updated_at: event.applied_at
+queries:
+  full_model:
+    returns: event_model
+    source: read_model.CurrentEventModel.artifact_id
+scenarios:
+  projects_applied_patch:
+    given:
+      - 'ModelPatchApplied{new_version: 2, new_model_hash: "sha256:example"}'
+    then:
+      rows:
+        - version: 2

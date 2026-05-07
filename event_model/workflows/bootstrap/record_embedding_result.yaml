@@ -1,0 +1,53 @@
+slice: record_embedding_result
+type: state_change
+workflow: bootstrap
+summary: Records embedding/indexing results for memory and component registry entries.
+owners:
+  context: Anything.Memory
+command:
+  name: RecordEmbeddingResult
+  module: Anything.Workflows.Bootstrap.Commands.RecordEmbeddingResult
+  fields:
+    embedding_result_id: {type: uuid, source: system.uuid}
+    embedding_request_id: {type: uuid, source: external.embedding_request_id}
+    source_id: {type: uuid, source: external.source_id}
+    status: {type: 'enum[indexed, failed]', source: external.status}
+    vector_artifact_id: {type: uuid, source: external.vector_artifact_id, optional: true}
+    error: {type: map, source: external.error, optional: true}
+    recorded_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.RecordEmbeddingResultAggregate
+  stream_id: embedding_result_id
+  prefix: embedding_result
+  pattern: single_aggregate_per_command
+  state:
+    recorded: {type: boolean, established_by: {EmbeddingIndexed: true, EmbeddingIndexFailed: true}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+  command_idempotency_key: embedding_request_id
+events:
+  - name: EmbeddingIndexed
+    version: 1
+    when: command.status == indexed
+    fields:
+      embedding_result_id: {type: uuid, source: command.embedding_result_id}
+      embedding_request_id: {type: uuid, source: command.embedding_request_id}
+      source_id: {type: uuid, source: command.source_id}
+      vector_artifact_id: {type: uuid, source: command.vector_artifact_id}
+      recorded_at: {type: utc_datetime, source: command.recorded_at}
+  - name: EmbeddingIndexFailed
+    version: 1
+    when: command.status == failed
+    fields:
+      embedding_result_id: {type: uuid, source: command.embedding_result_id}
+      embedding_request_id: {type: uuid, source: command.embedding_request_id}
+      source_id: {type: uuid, source: command.source_id}
+      error: {type: map, source: command.error}
+      recorded_at: {type: utc_datetime, source: command.recorded_at}
+scenarios:
+  main_success:
+    given: ['external.embedding.provider_response{status: "indexed"}']
+    when: 'RecordEmbeddingResult{status: "indexed"}'
+    then: ['EmbeddingIndexed{source_id: learning-1}']

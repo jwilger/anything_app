@@ -1,0 +1,35 @@
+slice: retrieve_generation_context
+type: automation
+workflow: bootstrap
+summary: Retrieves model, memory, component, and slice context before model patching.
+owners:
+  context: Anything.EventModel
+trigger:
+  type: event
+  event: DefectFiled
+reads:
+  - read_model: CurrentEventModel
+    query: full_model
+  - vector: PatternMemory
+    query: search
+  - vector: ComponentRegistry
+    query: search
+  - read_model: SliceCatalog
+    query: semantic_search
+computed:
+  context_query:
+    inputs: [trigger.description, trigger.expected_behavior]
+    output_type: string
+dispatches:
+  - command: RequestModelPatch
+    fields:
+      request_id: {type: uuid, source: system.uuid}
+      defect_id: {type: uuid, source: trigger.defect_id}
+      context_query: {type: string!, source: computed.context_query}
+      requested_by: {type: uuid, source: system.session.user_id}
+retry_policy: none
+idempotency_key: trigger.defect_id
+scenarios:
+  main_success:
+    given: ['DefectFiled{defect_id: defect-1}']
+    then: ['RequestModelPatch{defect_id: defect-1}']

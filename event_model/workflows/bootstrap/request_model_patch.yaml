@@ -1,0 +1,45 @@
+slice: request_model_patch
+type: state_change
+workflow: bootstrap
+summary: Records intent to ask an LLM for an event-model patch.
+owners:
+  context: Anything.EventModel
+command:
+  name: RequestModelPatch
+  module: Anything.Workflows.Bootstrap.Commands.RequestModelPatch
+  fields:
+    request_id: {type: uuid, source: system.uuid}
+    defect_id: {type: uuid, source: trigger.defect_id}
+    context_query: {type: string!, source: computed.context_query}
+    requested_by: {type: uuid, source: system.session.user_id}
+    requested_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.RequestModelPatchAggregate
+  stream_id: request_id
+  prefix: model_patch_request
+  pattern: single_aggregate_per_command
+  state:
+    requested: {type: boolean, established_by: {ModelPatchRequested: true}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+  command_idempotency_key: request_id
+events:
+  - name: ModelPatchRequested
+    version: 1
+    fields:
+      request_id: {type: uuid, source: command.request_id}
+      defect_id: {type: uuid, source: command.defect_id}
+      context_query: {type: string!, source: command.context_query}
+      requested_by: {type: uuid, source: command.requested_by}
+      requested_at: {type: utc_datetime, source: command.requested_at}
+scenarios:
+  main_success:
+    given: ['DefectFiled{defect_id: defect-1}']
+    when: 'RequestModelPatch{defect_id: defect-1}'
+    then: ['ModelPatchRequested{defect_id: defect-1}']
+  missing_defect:
+    given: []
+    when: 'RequestModelPatch{defect_id: nil}'
+    then: {error: MissingDefectError}

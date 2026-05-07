@@ -1,0 +1,56 @@
+slice: assemble_llm_context_package
+type: automation
+workflow: bootstrap
+summary: Builds typed, traceable, redacted LLM context packages.
+owners:
+  context: Anything.LLM
+trigger:
+  type: event
+  events: [ModelPatchRequested, CodeGenerationRequested, CompletenessCheckFailed, GeneratedCodeTestsFailed, GeneratedCodeCompilationFailed, DefectResolved]
+reads:
+  - read_model: CurrentEventModel
+    query: full_model
+  - read_model: PromptTemplateRegistry
+    query: by_purpose
+  - read_model: LLMProviderPolicy
+    query: by_purpose
+  - vector: PatternMemory
+    query: search
+  - vector: ComponentRegistry
+    query: search
+  - read_model: SliceCatalog
+    query: semantic_search
+  - read_model: DefectTimeline
+    query: by_defect
+computed:
+  purpose:
+    inputs: [trigger.event_name]
+    output_type: llm_purpose
+  defect_id:
+    inputs: [trigger.defect_id, reads.DefectTimeline.by_defect]
+    output_type: uuid
+  context_package:
+    inputs: [computed.defect_id, reads.CurrentEventModel.full_model, reads.PatternMemory.search, reads.ComponentRegistry.search, reads.SliceCatalog.semantic_search]
+    output_type: context_package
+    includes: [source_traceability, retrieval_metadata, token_estimates, sensitivity_classification, redaction_status]
+  invocation_key:
+    inputs: [trigger.event_id, computed.context_package.hash]
+    output_type: string
+dispatches:
+  - command: RequestLLMInvocation
+    fields:
+      invocation_id: {type: uuid, source: system.uuid}
+      purpose: {type: string!, source: computed.purpose}
+      provider_policy: {type: string!, source: reads.LLMProviderPolicy.by_purpose.policy_id}
+      prompt_template: {type: string!, source: reads.PromptTemplateRegistry.by_purpose.template_id}
+      output_schema: {type: string!, source: reads.PromptTemplateRegistry.by_purpose.output_schema}
+      context_package_artifact_id: {type: uuid, source: computed.context_package.artifact_id}
+      redaction_policy: {type: string!, source: reads.PromptTemplateRegistry.by_purpose.redaction_policy}
+      retry_policy: {type: string!, source: reads.LLMProviderPolicy.by_purpose.retry_policy}
+      idempotency_key: {type: string!, source: computed.invocation_key}
+retry_policy: no_external_retry
+idempotency_key: computed.invocation_key
+scenarios:
+  main_success:
+    given: ['ModelPatchRequested{defect_id: defect-1}']
+    then: ['RequestLLMInvocation{purpose: "model_patch"}']

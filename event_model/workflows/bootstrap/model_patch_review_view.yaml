@@ -1,0 +1,43 @@
+slice: model_patch_review_view
+type: state_view
+workflow: bootstrap
+summary: Projects model patch proposal, completeness, and review state for the diff review UI.
+owners:
+  context: Anything.EventModel
+  web: AnythingWeb.ModelPatchReviewLive
+read_model:
+  name: ModelPatchReview
+  table: model_patch_reviews
+  fields:
+    patch_id: {type: uuid, pk: true}
+    defect_id: {type: uuid}
+    status: {type: 'enum[proposed, complete, incomplete, accepted, rejected, applied]'}
+    reasoning_summary: {type: string}
+    affected_slices: {type: 'list[string]', default: []}
+    errors: {type: 'list[map]', default: []}
+    retry_count: {type: integer, default: 0}
+projects_from:
+  - event: ModelPatchProposed
+    action: insert
+    map:
+      patch_id: event.patch_id
+      defect_id: event.defect_id
+      status: "proposed"
+      reasoning_summary: event.reasoning_summary
+      affected_slices: event.affected_slices
+  - event: CompletenessCheckPassed
+    action: update
+    where: {patch_id: event.patch_id}
+    map: {status: "complete"}
+  - event: CompletenessCheckFailed
+    action: update
+    where: {patch_id: event.patch_id}
+    map: {status: "incomplete", errors: event.errors, retry_count: computed.increment_retry_count}
+  - event: ModelPatchApplied
+    action: update
+    where: {patch_id: event.patch_id}
+    map: {status: "applied"}
+scenarios:
+  projects_review_state:
+    given: ['ModelPatchProposed{patch_id: patch-1}', 'CompletenessCheckPassed{patch_id: patch-1}']
+    then: {rows: [{patch_id: patch-1, status: complete}]}

@@ -1,0 +1,61 @@
+slice: record_build_result
+type: state_change
+workflow: bootstrap
+summary: Records generated test, compile, and load results.
+owners:
+  context: Anything.CodeGeneration
+command:
+  name: RecordBuildResult
+  module: Anything.Workflows.Bootstrap.Commands.RecordBuildResult
+  fields:
+    build_result_id: {type: uuid, source: system.uuid}
+    generated_code_id: {type: uuid, source: trigger.generated_code_id}
+    phase: {type: 'enum[test, compile, load]', source: external.phase}
+    status: {type: 'enum[passed, failed]', source: external.status}
+    output_artifact_id: {type: uuid, source: external.output_artifact_id}
+    recorded_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.RecordBuildResultAggregate
+  stream_id: build_result_id
+  prefix: build_result
+  pattern: single_aggregate_per_command
+  state:
+    recorded: {type: boolean, established_by: {GeneratedCodeTestsPassed: true, GeneratedCodeTestsFailed: true, GeneratedCodeCompiled: true, GeneratedCodeCompilationFailed: true, GeneratedCodeLoaded: true, GeneratedCodeLoadFailed: true}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+events:
+  - name: GeneratedCodeTestsPassed
+    version: 1
+    when: command.phase == test and command.status == passed
+    fields: &build_fields
+      build_result_id: {type: uuid, source: command.build_result_id}
+      generated_code_id: {type: uuid, source: command.generated_code_id}
+      output_artifact_id: {type: uuid, source: command.output_artifact_id}
+      recorded_at: {type: utc_datetime, source: command.recorded_at}
+  - name: GeneratedCodeTestsFailed
+    version: 1
+    when: command.phase == test and command.status == failed
+    fields: *build_fields
+  - name: GeneratedCodeCompiled
+    version: 1
+    when: command.phase == compile and command.status == passed
+    fields: *build_fields
+  - name: GeneratedCodeCompilationFailed
+    version: 1
+    when: command.phase == compile and command.status == failed
+    fields: *build_fields
+  - name: GeneratedCodeLoaded
+    version: 1
+    when: command.phase == load and command.status == passed
+    fields: *build_fields
+  - name: GeneratedCodeLoadFailed
+    version: 1
+    when: command.phase == load and command.status == failed
+    fields: *build_fields
+scenarios:
+  main_success:
+    given: ['GeneratedCodeRecorded{generated_code_id: generated-code-1}']
+    when: 'RecordBuildResult{phase: "test", status: "passed"}'
+    then: ['GeneratedCodeTestsPassed{generated_code_id: generated-code-1}']

@@ -1,0 +1,49 @@
+slice: record_llm_output_validation_result
+type: state_change
+workflow: bootstrap
+summary: Records whether a completed provider response conforms to the expected structured output schema.
+owners:
+  context: Anything.LLM
+command:
+  name: RecordLLMOutputValidationResult
+  module: Anything.Workflows.Bootstrap.Commands.RecordLLMOutputValidationResult
+  fields:
+    validation_id: {type: uuid, source: system.uuid}
+    invocation_id: {type: uuid, source: trigger.invocation_id}
+    status: {type: 'enum[accepted, rejected]', source: computed.validation.status}
+    normalized_output: {type: map, source: computed.validation.normalized_output, optional: true}
+    errors: {type: 'list[map]', source: computed.validation.errors}
+    validated_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.RecordLLMOutputValidationResultAggregate
+  stream_id: validation_id
+  prefix: llm_output_validation
+  pattern: single_aggregate_per_command
+  state:
+    status: {type: string, established_by: {LLMStructuredOutputAccepted: accepted, LLMStructuredOutputRejected: rejected}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+events:
+  - name: LLMStructuredOutputAccepted
+    version: 1
+    when: command.status == accepted
+    fields:
+      validation_id: {type: uuid, source: command.validation_id}
+      invocation_id: {type: uuid, source: command.invocation_id}
+      normalized_output: {type: map, source: command.normalized_output}
+      validated_at: {type: utc_datetime, source: command.validated_at}
+  - name: LLMStructuredOutputRejected
+    version: 1
+    when: command.status == rejected
+    fields:
+      validation_id: {type: uuid, source: command.validation_id}
+      invocation_id: {type: uuid, source: command.invocation_id}
+      errors: {type: 'list[map]', source: command.errors}
+      validated_at: {type: utc_datetime, source: command.validated_at}
+scenarios:
+  main_success:
+    given: ['LLMInvocationCompleted{invocation_id: invocation-1}']
+    when: 'RecordLLMOutputValidationResult{status: "accepted"}'
+    then: ['LLMStructuredOutputAccepted{invocation_id: invocation-1}']

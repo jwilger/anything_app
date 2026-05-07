@@ -1,0 +1,30 @@
+slice: validate_llm_structured_output
+type: automation
+workflow: bootstrap
+summary: Validates completed provider output against the expected structured output schema.
+owners:
+  context: Anything.LLM
+trigger:
+  type: event
+  event: LLMInvocationCompleted
+reads:
+  - read_model: LLMProviderPolicy
+    query: by_purpose
+computed:
+  validation:
+    inputs: [trigger.structured_output, trigger.output_schema]
+    output_type: structured_output_validation
+dispatches:
+  - command: RecordLLMOutputValidationResult
+    fields:
+      validation_id: {type: uuid, source: system.uuid}
+      invocation_id: {type: uuid, source: trigger.invocation_id}
+      status: {type: 'enum[accepted, rejected]', source: computed.validation.status}
+      normalized_output: {type: map, source: computed.validation.normalized_output}
+      errors: {type: 'list[map]', source: computed.validation.errors}
+retry_policy: none
+idempotency_key: trigger.invocation_id
+scenarios:
+  main_success:
+    given: ['LLMInvocationCompleted{invocation_id: invocation-1}']
+    then: ['RecordLLMOutputValidationResult{invocation_id: invocation-1}']

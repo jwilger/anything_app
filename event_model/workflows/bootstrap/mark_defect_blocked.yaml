@@ -1,0 +1,38 @@
+slice: mark_defect_blocked
+type: state_change
+workflow: bootstrap
+summary: Records a terminal blocked state when bounded automated repair cannot proceed safely.
+owners:
+  context: Anything.Defects
+command:
+  name: MarkDefectBlocked
+  module: Anything.Workflows.Bootstrap.Commands.MarkDefectBlocked
+  fields:
+    block_id: {type: uuid, source: system.uuid}
+    defect_id: {type: uuid, source: trigger.defect_id}
+    reason: {type: string!, source: command_caller.reason}
+    blocked_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.MarkDefectBlockedAggregate
+  stream_id: defect_id
+  prefix: defect
+  pattern: single_aggregate_per_command
+  state:
+    blocked: {type: boolean, established_by: {DefectBlocked: true}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+events:
+  - name: DefectBlocked
+    version: 1
+    fields:
+      block_id: {type: uuid, source: command.block_id}
+      defect_id: {type: uuid, source: command.defect_id}
+      reason: {type: string!, source: command.reason}
+      blocked_at: {type: utc_datetime, source: command.blocked_at}
+scenarios:
+  main_success:
+    given: ['LLMStructuredOutputRejected{invocation_id: invocation-1}']
+    when: 'MarkDefectBlocked{defect_id: defect-1}'
+    then: ['DefectBlocked{defect_id: defect-1}']

@@ -1,0 +1,29 @@
+slice: send_llm_invocation_to_provider
+type: automation
+workflow: bootstrap
+summary: Sends validated LLM invocation requests to the configured provider adapter.
+owners:
+  context: Anything.LLM
+trigger:
+  type: event
+  event: LLMInvocationRequested
+reads:
+  - read_model: LLMProviderPolicy
+    query: by_purpose
+  - read_model: PromptTemplateRegistry
+    query: by_purpose
+  - artifact: context_package_artifact_id
+computed:
+  provider_request:
+    inputs: [trigger.invocation_id, reads.LLMProviderPolicy.by_purpose, reads.PromptTemplateRegistry.by_purpose, reads.artifact.context_package_artifact_id]
+    output_type: llm_provider_request
+external_side_effect:
+  boundary: llm_provider
+  request: computed.provider_request
+  idempotency_key: trigger.idempotency_key
+  failure_handling: translate_failure_to_RecordLLMInvocationResult
+retry_policy: reads.LLMProviderPolicy.retry_policy
+scenarios:
+  main_success:
+    given: ['LLMInvocationRequested{invocation_id: invocation-1}']
+    then: ['external.llm_provider.requested{invocation_id: invocation-1}']

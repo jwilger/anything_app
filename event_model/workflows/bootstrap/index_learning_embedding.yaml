@@ -1,0 +1,15 @@
+slice: index_learning_embedding
+type: automation
+workflow: bootstrap
+summary: Generates and records embeddings for learning and component registry entries.
+owners: {context: Anything.Memory}
+trigger: {type: event, events: [LearningRecorded, ExistingComponentSelected, ComponentCreated, ComponentEvolved]}
+reads:
+  - artifact: content_artifact_id
+computed:
+  embedding_request: {inputs: [trigger.learning_id, trigger.content_artifact_id], output_type: embedding_request}
+external_side_effect: {boundary: embedding_provider, request: computed.embedding_request, idempotency_key: trigger.event_id, failure_handling: receive_embedding_response}
+retry_policy: embedding_default
+idempotency_key: trigger.event_id
+scenarios:
+  main_success: {given: ['LearningRecorded{learning_id: learning-1}'], then: ['external.embedding_provider.requested{learning_id: learning-1}']}

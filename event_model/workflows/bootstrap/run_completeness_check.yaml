@@ -1,0 +1,24 @@
+slice: run_completeness_check
+type: automation
+workflow: bootstrap
+summary: Applies a proposed model patch to the current model and runs strict completeness validation.
+owners: {context: Anything.EventModel}
+trigger: {type: event, event: ModelPatchProposed}
+reads:
+  - read_model: CurrentEventModel
+    query: full_model
+computed:
+  patched_model: {inputs: [trigger.proposed_patch_artifact_id, reads.CurrentEventModel.full_model], output_type: event_model}
+  completeness_result: {inputs: [computed.patched_model], output_type: completeness_result}
+dispatches:
+  - command: RecordCompletenessCheckResult
+    fields:
+      check_id: {type: uuid, source: system.uuid}
+      defect_id: {type: uuid, source: trigger.defect_id}
+      patch_id: {type: uuid, source: trigger.patch_id}
+      result: {type: 'enum[passed, failed]', source: computed.completeness_result.status}
+      errors: {type: 'list[completeness_error]', source: computed.completeness_result.errors}
+retry_policy: none
+idempotency_key: trigger.patch_id
+scenarios:
+  main_success: {given: ['ModelPatchProposed{patch_id: patch-1}'], then: ['RecordCompletenessCheckResult{patch_id: patch-1}']}

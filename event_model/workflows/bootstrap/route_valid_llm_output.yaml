@@ -1,0 +1,52 @@
+slice: route_valid_llm_output
+type: automation
+workflow: bootstrap
+summary: Routes schema-valid generic LLM output to the purpose-specific domain command.
+owners:
+  context: Anything.LLM
+trigger:
+  type: event
+  event: LLMStructuredOutputAccepted
+reads:
+  - read_model: LLMInvocationLog
+    query: by_invocation
+computed:
+  route:
+    inputs: [reads.LLMInvocationLog.purpose]
+    output_type: domain_command_route
+dispatches:
+  - command: RecordModelPatchProposal
+    when: computed.route == model_patch
+    fields:
+      request_id: {source: trigger.normalized_output.request_id}
+      defect_id: {source: trigger.normalized_output.defect_id}
+      proposed_patch_artifact_id: {source: trigger.normalized_output.proposed_patch_artifact_id}
+      reasoning_summary: {source: trigger.normalized_output.reasoning_summary}
+      affected_slices: {source: trigger.normalized_output.affected_slices}
+  - command: RecordGeneratedCode
+    when: computed.route == code_generation
+    fields:
+      generation_request_id: {source: trigger.normalized_output.generation_request_id}
+      artifact_manifest_id: {source: trigger.normalized_output.artifact_manifest_id}
+      artifact_hash: {source: trigger.normalized_output.artifact_hash}
+      affected_slices: {source: trigger.normalized_output.affected_slices}
+  - command: RecordLearning
+    when: computed.route == learning_extraction
+    fields:
+      source_defect_id: {source: trigger.normalized_output.source_defect_id}
+      classification: {source: trigger.normalized_output.classification}
+      content_artifact_id: {source: trigger.normalized_output.content_artifact_id}
+      sensitivity: {source: trigger.normalized_output.sensitivity}
+  - command: RecordComponentDecision
+    when: computed.route == component_selection
+    fields:
+      component_id: {source: trigger.normalized_output.component_id}
+      decision: {source: trigger.normalized_output.decision}
+      search_evidence_artifact_id: {source: trigger.normalized_output.search_evidence_artifact_id}
+      rationale: {source: trigger.normalized_output.rationale}
+retry_policy: none
+idempotency_key: trigger.validation_id
+scenarios:
+  main_success:
+    given: ['LLMStructuredOutputAccepted{invocation_id: invocation-1}']
+    then: ['RecordModelPatchProposal{request_id: request-1}']

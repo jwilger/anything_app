@@ -4,4 +4,4 @@
 
 .dependencies/
 .direnv/
-
+node_modules/

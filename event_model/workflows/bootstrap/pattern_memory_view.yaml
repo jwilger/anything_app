@@ -1,0 +1,32 @@
+slice: pattern_memory_view
+type: memory
+workflow: bootstrap
+summary: Stores and retrieves reusable pattern memory from resolved defects.
+owners:
+  context: Anything.Memory
+memory:
+  name: PatternMemory
+  table: pattern_memories
+  vector_table: pattern_memory_embeddings
+  source_event: LearningRecorded
+  classification: pattern
+  embedding_model: policy.embedding_default
+  retention_policy: project_default
+  sensitivity_policy: prompt_safe
+retrieval_queries:
+  search:
+    input: {query: string!, max_items: integer}
+    returns: 'list[PatternMemory]'
+    authority: prompt_evidence_only
+projects_from:
+  - event: LearningRecorded
+    action: insert
+    map:
+      learning_id: event.learning_id
+      source_defect_id: event.source_defect_id
+      content_artifact_id: event.content_artifact_id
+      sensitivity: event.sensitivity
+scenarios:
+  indexes_learning:
+    given: ['LearningRecorded{learning_id: learning-1}']
+    then: {searchable: true}

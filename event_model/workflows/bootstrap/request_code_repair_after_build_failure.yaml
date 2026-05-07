@@ -1,0 +1,30 @@
+slice: request_code_repair_after_build_failure
+type: automation
+workflow: bootstrap
+summary: Requests bounded code repair after test or compile failure.
+owners: {context: Anything.CodeGeneration}
+trigger: {type: event, events: [GeneratedCodeTestsFailed, GeneratedCodeCompilationFailed]}
+reads:
+  - read_model: BuildStatus
+    query: by_generated_code
+computed:
+  repair_context: {inputs: [trigger.output_artifact_id, reads.BuildStatus.generated_code_id], output_type: context_package}
+  retry_allowed: {inputs: [reads.BuildStatus.retry_count], output_type: boolean}
+  invocation_key: {inputs: [trigger.build_result_id, computed.repair_context.hash], output_type: string}
+dispatches:
+  - command: RequestLLMInvocation
+    when: computed.retry_allowed == true
+    fields:
+      invocation_id: {source: system.uuid}
+      purpose: {source: literal.code_repair}
+      provider_policy: {source: read_model.LLMProviderPolicy.policy_id}
+      prompt_template: {source: read_model.PromptTemplateRegistry.template_id}
+      output_schema: {source: read_model.PromptTemplateRegistry.output_schema}
+      context_package_artifact_id: {source: computed.repair_context.artifact_id}
+      redaction_policy: {source: read_model.PromptTemplateRegistry.redaction_policy}
+      retry_policy: {source: read_model.LLMProviderPolicy.retry_policy}
+      idempotency_key: {source: computed.invocation_key}
+retry_policy: bounded_code_repair
+idempotency_key: trigger.build_result_id
+scenarios:
+  main_success: {given: ['GeneratedCodeTestsFailed{generated_code_id: generated-code-1}'], then: ['RequestLLMInvocation{purpose: "code_repair"}']}

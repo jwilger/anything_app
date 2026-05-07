@@ -1,0 +1,59 @@
+slice: file_defect
+type: state_change
+workflow: bootstrap
+summary: User files the next defect to drive app evolution.
+owners:
+  context: Anything.Defects
+  web: AnythingWeb.DefectConsoleLive
+screen:
+  name: DefectConsoleLive
+  inputs:
+    description: {type: string!, source: user}
+    expected_behavior: {type: string!, source: user}
+  actions:
+    file_defect:
+      command: FileDefect
+      authorization: authenticated_user
+command:
+  name: FileDefect
+  module: Anything.Workflows.Bootstrap.Commands.FileDefect
+  fields:
+    defect_id: {type: uuid, source: system.uuid}
+    description: {type: string!, source: screen.description}
+    expected_behavior: {type: string!, source: screen.expected_behavior}
+    filed_by: {type: uuid, source: system.session.user_id}
+    filed_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.FileDefectAggregate
+  stream_id: defect_id
+  prefix: defect
+  pattern: single_aggregate_per_command
+  state:
+    filed:
+      type: boolean
+      established_by:
+        DefectFiled: true
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+events:
+  - name: DefectFiled
+    version: 1
+    fields:
+      defect_id: {type: uuid, source: command.defect_id}
+      description: {type: string!, source: command.description}
+      expected_behavior: {type: string!, source: command.expected_behavior}
+      filed_by: {type: uuid, source: command.filed_by}
+      filed_at: {type: utc_datetime, source: command.filed_at}
+scenarios:
+  main_success:
+    given: []
+    when: 'FileDefect{description: "Cannot see open defect count", expected_behavior: "Dashboard shows open count"}'
+    then:
+      - 'DefectFiled{description: "Cannot see open defect count", expected_behavior: "Dashboard shows open count"}'
+  missing_description:
+    given: []
+    when: 'FileDefect{description: "", expected_behavior: "Dashboard shows open count"}'
+    then:
+      error: EmptyDescriptionError

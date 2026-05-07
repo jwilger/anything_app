@@ -1,0 +1,30 @@
+slice: request_code_generation_llm_invocation
+type: automation
+workflow: bootstrap
+summary: Converts code-generation intent into a typed LLM invocation.
+owners: {context: Anything.CodeGeneration}
+trigger: {type: event, event: CodeGenerationRequested}
+reads:
+  - read_model: PromptTemplateRegistry
+    query: by_purpose
+  - read_model: LLMProviderPolicy
+    query: by_purpose
+computed:
+  context_package: {inputs: [trigger.patch_id, trigger.affected_slices], output_type: context_package}
+  invocation_key: {inputs: [trigger.generation_request_id, computed.context_package.hash], output_type: string}
+dispatches:
+  - command: RequestLLMInvocation
+    fields:
+      invocation_id: {source: system.uuid}
+      purpose: {source: literal.code_generation}
+      provider_policy: {source: read_model.LLMProviderPolicy.policy_id}
+      prompt_template: {source: read_model.PromptTemplateRegistry.template_id}
+      output_schema: {source: read_model.PromptTemplateRegistry.output_schema}
+      context_package_artifact_id: {source: computed.context_package.artifact_id}
+      redaction_policy: {source: read_model.PromptTemplateRegistry.redaction_policy}
+      retry_policy: {source: read_model.LLMProviderPolicy.retry_policy}
+      idempotency_key: {source: computed.invocation_key}
+retry_policy: none
+idempotency_key: computed.invocation_key
+scenarios:
+  main_success: {given: ['CodeGenerationRequested{generation_request_id: generation-request-1}'], then: ['RequestLLMInvocation{purpose: "code_generation"}']}

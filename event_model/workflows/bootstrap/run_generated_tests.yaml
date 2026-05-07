@@ -1,0 +1,18 @@
+slice: run_generated_tests
+type: automation
+workflow: bootstrap
+summary: Runs focused generated and affected ExUnit tests for generated code.
+owners: {context: Anything.CodeGeneration}
+trigger: {type: event, event: GeneratedCodeRecorded}
+reads:
+  - artifact: artifact_manifest_id
+computed:
+  test_plan: {inputs: [trigger.artifact_manifest_id, trigger.affected_slices], output_type: test_plan}
+external_side_effect: {boundary: build_runner, request: computed.test_plan, idempotency_key: trigger.generated_code_id, failure_handling: receive_build_runner_result}
+dispatches:
+  - command: RecordBuildResult
+    fields: {generated_code_id: {source: trigger.generated_code_id}, phase: {source: literal.test}, status: {source: external.status}}
+retry_policy: build_runner_default
+idempotency_key: trigger.generated_code_id
+scenarios:
+  main_success: {given: ['GeneratedCodeRecorded{generated_code_id: generated-code-1}'], then: ['RecordBuildResult{phase: "test"}']}

@@ -1,0 +1,30 @@
+slice: request_model_patch_revision
+type: automation
+workflow: bootstrap
+summary: Requests bounded model-patch repair using structured completeness errors.
+owners: {context: Anything.EventModel}
+trigger: {type: event, event: CompletenessCheckFailed}
+reads:
+  - read_model: ModelPatchReview
+    query: by_patch
+computed:
+  retry_allowed: {inputs: [trigger.errors, reads.ModelPatchReview.retry_count], output_type: boolean}
+  repair_context: {inputs: [trigger.errors, trigger.patch_id], output_type: context_package}
+  invocation_key: {inputs: [trigger.check_id, computed.repair_context.hash], output_type: string}
+dispatches:
+  - command: RequestLLMInvocation
+    when: computed.retry_allowed == true
+    fields:
+      invocation_id: {source: system.uuid}
+      purpose: {source: literal.model_patch_repair}
+      provider_policy: {source: read_model.LLMProviderPolicy.policy_id}
+      prompt_template: {source: read_model.PromptTemplateRegistry.template_id}
+      output_schema: {source: read_model.PromptTemplateRegistry.output_schema}
+      context_package_artifact_id: {source: computed.repair_context.artifact_id}
+      redaction_policy: {source: read_model.PromptTemplateRegistry.redaction_policy}
+      retry_policy: {source: read_model.LLMProviderPolicy.retry_policy}
+      idempotency_key: {source: computed.invocation_key}
+retry_policy: bounded_model_patch_repair
+idempotency_key: trigger.check_id
+scenarios:
+  main_success: {given: ['CompletenessCheckFailed{patch_id: patch-1}'], then: ['RequestLLMInvocation{purpose: "model_patch_repair"}']}

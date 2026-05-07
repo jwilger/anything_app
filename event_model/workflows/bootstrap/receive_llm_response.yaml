@@ -1,0 +1,37 @@
+slice: receive_llm_response
+type: translation
+workflow: bootstrap
+summary: Translates completed or failed provider responses into `RecordLLMInvocationResult`.
+owners: {context: Anything.LLM}
+external_event:
+  boundary: llm_provider
+  source: llm.provider_response
+  idempotency_key: external.provider_request_id
+  fields:
+    invocation_id: {type: uuid}
+    provider_request_id: {type: string!}
+    status: {type: 'enum[completed, failed, cancelled, rate_limited]'}
+    output_schema: {type: string}
+    structured_output: {type: map}
+    raw_response_artifact_id: {type: uuid, optional: true}
+    token_usage: {type: map}
+    latency_ms: {type: integer}
+    estimated_cost: {type: decimal, optional: true}
+    error: {type: map, optional: true}
+translates_to:
+  command: RecordLLMInvocationResult
+  fields:
+    invocation_id: {source: external.invocation_id}
+    provider_request_id: {source: external.provider_request_id}
+    status: {source: external.status}
+    output_schema: {source: external.output_schema}
+    structured_output: {source: external.structured_output}
+    raw_response_artifact_id: {source: external.raw_response_artifact_id}
+    token_usage: {source: external.token_usage}
+    latency_ms: {source: external.latency_ms}
+    estimated_cost: {source: external.estimated_cost}
+    error: {source: external.error}
+    received_at: {source: system.clock}
+failure_handling: malformed_response_rejected_before_command
+scenarios:
+  main_success: {given: ['external.llm.provider_response{status: "completed"}'], then: ['RecordLLMInvocationResult{status: "completed"}']}

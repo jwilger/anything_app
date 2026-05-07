@@ -1,0 +1,48 @@
+slice: apply_model_patch
+type: state_change
+workflow: bootstrap
+summary: Advances the current event model after acceptance and completeness validation.
+owners:
+  context: Anything.EventModel
+command:
+  name: ApplyModelPatch
+  module: Anything.Workflows.Bootstrap.Commands.ApplyModelPatch
+  fields:
+    application_id: {type: uuid, source: system.uuid}
+    model_id: {type: uuid, source: read_model.CurrentEventModel.model_id}
+    patch_id: {type: uuid, source: trigger.patch_id}
+    new_version: {type: integer, source: computed.patched_model.version}
+    new_model_hash: {type: string!, source: computed.patched_model.hash}
+    model_artifact_id: {type: uuid, source: computed.patched_model.artifact_id}
+    affected_slices: {type: 'list[string]', source: read_model.ModelPatchReview.affected_slices}
+    applied_by: {type: uuid, source: system.session.user_id}
+    applied_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.ApplyModelPatchAggregate
+  stream_id: patch_id
+  prefix: model_patch
+  pattern: single_aggregate_per_command
+  state:
+    applied: {type: boolean, established_by: {ModelPatchApplied: true}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+events:
+  - name: ModelPatchApplied
+    version: 1
+    fields:
+      application_id: {type: uuid, source: command.application_id}
+      model_id: {type: uuid, source: command.model_id}
+      patch_id: {type: uuid, source: command.patch_id}
+      new_version: {type: integer, source: command.new_version}
+      new_model_hash: {type: string!, source: command.new_model_hash}
+      model_artifact_id: {type: uuid, source: command.model_artifact_id}
+      affected_slices: {type: 'list[string]', source: command.affected_slices}
+      applied_by: {type: uuid, source: command.applied_by}
+      applied_at: {type: utc_datetime, source: command.applied_at}
+scenarios:
+  main_success:
+    given: ['ModelPatchAccepted{patch_id: patch-1}']
+    when: 'ApplyModelPatch{patch_id: patch-1}'
+    then: ['ModelPatchApplied{patch_id: patch-1}']

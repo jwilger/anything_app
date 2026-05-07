@@ -1,0 +1,44 @@
+slice: llm_invocation_log_view
+type: state_view
+workflow: bootstrap
+summary: Audits LLM invocation lifecycle, validation, cost, latency, and provider health signals.
+owners:
+  context: Anything.LLM
+read_model:
+  name: LLMInvocationLog
+  table: llm_invocation_logs
+  fields:
+    invocation_id: {type: uuid, pk: true}
+    purpose: {type: string!}
+    status: {type: 'enum[requested, completed, failed, rate_limited, cancelled, output_accepted, output_rejected]'}
+    provider_request_id: {type: string, optional: true}
+    token_usage: {type: map, optional: true}
+    latency_ms: {type: integer, optional: true}
+    estimated_cost: {type: decimal, optional: true}
+    updated_at: {type: utc_datetime}
+projects_from:
+  - event: LLMInvocationRequested
+    action: insert
+    map:
+      invocation_id: event.invocation_id
+      purpose: event.purpose
+      status: "requested"
+      updated_at: event.requested_at
+  - event: LLMInvocationCompleted
+    action: update
+    where: {invocation_id: event.invocation_id}
+    map:
+      status: "completed"
+      provider_request_id: event.provider_request_id
+      token_usage: event.token_usage
+      latency_ms: event.latency_ms
+      estimated_cost: event.estimated_cost
+      updated_at: event.received_at
+scenarios:
+  tracks_completed_invocation:
+    given:
+      - 'LLMInvocationRequested{purpose: "model_patch"}'
+      - 'LLMInvocationCompleted{latency_ms: 1200}'
+    then:
+      rows:
+        - status: completed

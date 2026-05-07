@@ -1,0 +1,24 @@
+slice: receive_llm_code_generation_response
+type: translation
+workflow: bootstrap
+summary: Translates schema-valid code-generation output into generated artifact recording.
+owners: {context: Anything.CodeGeneration}
+external_event:
+  boundary: llm_output_router
+  source: llm.code_generation_response
+  idempotency_key: external.generation_request_id
+  fields:
+    generation_request_id: {type: uuid}
+    artifact_manifest_id: {type: uuid}
+    artifact_hash: {type: string!}
+    affected_slices: {type: 'list[string]'}
+translates_to:
+  command: RecordGeneratedCode
+  fields:
+    generation_request_id: {source: external.generation_request_id}
+    artifact_manifest_id: {source: external.artifact_manifest_id}
+    artifact_hash: {source: external.artifact_hash}
+    affected_slices: {source: external.affected_slices}
+failure_handling: invalid_shape_routes_to_structured_output_rejection
+scenarios:
+  main_success: {given: ['LLMStructuredOutputAccepted{invocation_id: invocation-2}'], then: ['RecordGeneratedCode{generation_request_id: generation-request-1}']}

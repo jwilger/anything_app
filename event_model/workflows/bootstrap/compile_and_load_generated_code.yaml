@@ -1,0 +1,18 @@
+slice: compile_and_load_generated_code
+type: automation
+workflow: bootstrap
+summary: Compiles and safely loads generated code after focused tests pass.
+owners: {context: Anything.CodeGeneration}
+trigger: {type: event, event: GeneratedCodeTestsPassed}
+reads:
+  - artifact: output_artifact_id
+computed:
+  compile_plan: {inputs: [trigger.generated_code_id, trigger.output_artifact_id], output_type: compile_plan}
+external_side_effect: {boundary: build_runner, request: computed.compile_plan, idempotency_key: trigger.generated_code_id, failure_handling: receive_build_runner_result}
+dispatches:
+  - command: RecordBuildResult
+    fields: {generated_code_id: {source: trigger.generated_code_id}, phase: {source: external.phase}, status: {source: external.status}}
+retry_policy: build_runner_default
+idempotency_key: trigger.generated_code_id
+scenarios:
+  main_success: {given: ['GeneratedCodeTestsPassed{generated_code_id: generated-code-1}'], then: ['RecordBuildResult{phase: "compile"}']}

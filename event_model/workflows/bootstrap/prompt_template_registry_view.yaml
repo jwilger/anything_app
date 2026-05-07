@@ -1,0 +1,40 @@
+slice: prompt_template_registry_view
+type: state_view
+workflow: bootstrap
+summary: Provides versioned prompt template metadata for LLM automations.
+owners:
+  context: Anything.LLM
+read_model:
+  name: PromptTemplateRegistry
+  table: prompt_template_registry_entries
+  fields:
+    template_id: {type: string!, pk: true}
+    purpose: {type: string!}
+    version: {type: integer!}
+    output_schema: {type: string!}
+    required_context_sections: {type: 'list[string]'}
+    optional_context_sections: {type: 'list[string]'}
+    redaction_policy: {type: string!}
+projects_from:
+  - event: PromptTemplateDefined
+    action: upsert
+    where: {template_id: event.template_id}
+    map:
+      template_id: event.template_id
+      purpose: event.purpose
+      version: event.version
+      output_schema: event.output_schema
+      required_context_sections: event.required_context_sections
+      optional_context_sections: event.optional_context_sections
+      redaction_policy: event.redaction_policy
+queries:
+  by_purpose:
+    input: {purpose: string!}
+    returns: PromptTemplateRegistry
+scenarios:
+  registers_template:
+    given:
+      - 'PromptTemplateDefined{template_id: "prompts.model_patch.v1", purpose: "model_patch"}'
+    then:
+      rows:
+        - purpose: model_patch

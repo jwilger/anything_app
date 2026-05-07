@@ -1,0 +1,50 @@
+slice: record_completeness_check_result
+type: state_change
+workflow: bootstrap
+summary: Records deterministic strict information completeness validation result for a proposed model patch.
+owners:
+  context: Anything.EventModel
+command:
+  name: RecordCompletenessCheckResult
+  module: Anything.Workflows.Bootstrap.Commands.RecordCompletenessCheckResult
+  fields:
+    check_id: {type: uuid, source: system.uuid}
+    defect_id: {type: uuid, source: trigger.defect_id}
+    patch_id: {type: uuid, source: trigger.patch_id}
+    result: {type: 'enum[passed, failed]', source: computed.completeness_result.status}
+    errors: {type: 'list[completeness_error]', source: computed.completeness_result.errors}
+    checked_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.RecordCompletenessCheckResultAggregate
+  stream_id: check_id
+  prefix: completeness_check
+  pattern: single_aggregate_per_command
+  state:
+    result: {type: string, established_by: {CompletenessCheckPassed: passed, CompletenessCheckFailed: failed}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+events:
+  - name: CompletenessCheckPassed
+    version: 1
+    when: command.result == passed
+    fields:
+      check_id: {type: uuid, source: command.check_id}
+      defect_id: {type: uuid, source: command.defect_id}
+      patch_id: {type: uuid, source: command.patch_id}
+      checked_at: {type: utc_datetime, source: command.checked_at}
+  - name: CompletenessCheckFailed
+    version: 1
+    when: command.result == failed
+    fields:
+      check_id: {type: uuid, source: command.check_id}
+      defect_id: {type: uuid, source: command.defect_id}
+      patch_id: {type: uuid, source: command.patch_id}
+      errors: {type: 'list[completeness_error]', source: command.errors}
+      checked_at: {type: utc_datetime, source: command.checked_at}
+scenarios:
+  main_success:
+    given: ['ModelPatchProposed{patch_id: patch-1}']
+    when: 'RecordCompletenessCheckResult{result: "passed"}'
+    then: ['CompletenessCheckPassed{patch_id: patch-1}']

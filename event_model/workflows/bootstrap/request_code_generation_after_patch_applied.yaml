@@ -1,0 +1,24 @@
+slice: request_code_generation_after_patch_applied
+type: automation
+workflow: bootstrap
+summary: Starts code-generation intent after a validated model patch is applied.
+owners: {context: Anything.CodeGeneration}
+trigger: {type: event, event: ModelPatchApplied}
+reads:
+  - read_model: CurrentEventModel
+    query: full_model
+  - read_model: SliceCatalog
+    query: semantic_search
+computed:
+  affected_slices: {inputs: [trigger.patch_id, reads.SliceCatalog.semantic_search], output_type: 'list[string]'}
+dispatches:
+  - command: RequestCodeGeneration
+    fields:
+      generation_request_id: {source: system.uuid}
+      patch_id: {source: trigger.patch_id}
+      model_version: {source: trigger.new_version}
+      affected_slices: {source: computed.affected_slices}
+retry_policy: none
+idempotency_key: trigger.patch_id
+scenarios:
+  main_success: {given: ['ModelPatchApplied{patch_id: patch-1}'], then: ['RequestCodeGeneration{patch_id: patch-1}']}

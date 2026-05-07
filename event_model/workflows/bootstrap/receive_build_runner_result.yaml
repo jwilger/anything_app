@@ -1,0 +1,26 @@
+slice: receive_build_runner_result
+type: translation
+workflow: bootstrap
+summary: Translates isolated test/compile/load runner results into build result commands.
+owners: {context: Anything.CodeGeneration}
+external_event:
+  boundary: build_runner
+  source: build_runner.result
+  idempotency_key: external.run_id
+  fields:
+    run_id: {type: uuid}
+    generated_code_id: {type: uuid}
+    phase: {type: 'enum[test, compile, load]'}
+    status: {type: 'enum[passed, failed]'}
+    output_artifact_id: {type: uuid}
+translates_to:
+  command: RecordBuildResult
+  fields:
+    generated_code_id: {source: external.generated_code_id}
+    phase: {source: external.phase}
+    status: {source: external.status}
+    output_artifact_id: {source: external.output_artifact_id}
+    recorded_at: {source: system.clock}
+failure_handling: failed_runner_result_records_failure_event
+scenarios:
+  main_success: {given: ['external.build_runner.result{phase: "test", status: "passed"}'], then: ['RecordBuildResult{phase: "test", status: "passed"}']}

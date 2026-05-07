@@ -1,0 +1,42 @@
+slice: record_learning
+type: state_change
+workflow: bootstrap
+summary: Captures schema-valid reusable learning after a defect cycle.
+owners:
+  context: Anything.Memory
+command:
+  name: RecordLearning
+  module: Anything.Workflows.Bootstrap.Commands.RecordLearning
+  fields:
+    learning_id: {type: uuid, source: system.uuid}
+    source_defect_id: {type: uuid, source: trigger.defect_id}
+    classification: {type: 'enum[pattern, pattern_choice, slice, component]', source: external.classification}
+    content_artifact_id: {type: uuid, source: external.content_artifact_id}
+    sensitivity: {type: string!, source: external.sensitivity}
+    recorded_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.RecordLearningAggregate
+  stream_id: learning_id
+  prefix: learning
+  pattern: single_aggregate_per_command
+  state:
+    recorded: {type: boolean, established_by: {LearningRecorded: true}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+events:
+  - name: LearningRecorded
+    version: 1
+    fields:
+      learning_id: {type: uuid, source: command.learning_id}
+      source_defect_id: {type: uuid, source: command.source_defect_id}
+      classification: {type: string!, source: command.classification}
+      content_artifact_id: {type: uuid, source: command.content_artifact_id}
+      sensitivity: {type: string!, source: command.sensitivity}
+      recorded_at: {type: utc_datetime, source: command.recorded_at}
+scenarios:
+  main_success:
+    given: ['DefectResolved{defect_id: defect-1}']
+    when: 'RecordLearning{source_defect_id: defect-1}'
+    then: ['LearningRecorded{source_defect_id: defect-1}']

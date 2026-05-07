@@ -1,0 +1,44 @@
+slice: request_code_generation
+type: state_change
+workflow: bootstrap
+summary: Records intent to ask an LLM for code from an applied model patch.
+owners:
+  context: Anything.CodeGeneration
+command:
+  name: RequestCodeGeneration
+  module: Anything.Workflows.Bootstrap.Commands.RequestCodeGeneration
+  fields:
+    generation_request_id: {type: uuid, source: system.uuid}
+    patch_id: {type: uuid, source: trigger.patch_id}
+    model_version: {type: integer, source: trigger.new_version}
+    affected_slices: {type: 'list[string]', source: computed.affected_slices}
+    requested_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.RequestCodeGenerationAggregate
+  stream_id: generation_request_id
+  prefix: code_generation
+  pattern: single_aggregate_per_command
+  state:
+    requested: {type: boolean, established_by: {CodeGenerationRequested: true}}
+computed:
+  affected_slices:
+    inputs: [trigger.affected_slices]
+    output_type: 'list[string]'
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+events:
+  - name: CodeGenerationRequested
+    version: 1
+    fields:
+      generation_request_id: {type: uuid, source: command.generation_request_id}
+      patch_id: {type: uuid, source: command.patch_id}
+      model_version: {type: integer, source: command.model_version}
+      affected_slices: {type: 'list[string]', source: command.affected_slices}
+      requested_at: {type: utc_datetime, source: command.requested_at}
+scenarios:
+  main_success:
+    given: ['ModelPatchApplied{patch_id: patch-1}']
+    when: 'RequestCodeGeneration{patch_id: patch-1}'
+    then: ['CodeGenerationRequested{patch_id: patch-1}']

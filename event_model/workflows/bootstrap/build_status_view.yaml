@@ -1,0 +1,55 @@
+slice: build_status_view
+type: state_view
+workflow: bootstrap
+summary: Projects code-generation, test, compile, load, and failure status.
+owners:
+  context: Anything.CodeGeneration
+  web: AnythingWeb.BuildStatusLive
+read_model:
+  name: BuildStatus
+  table: build_statuses
+  fields:
+    generated_code_id: {type: uuid, pk: true}
+    latest_phase: {type: string}
+    latest_status: {type: string}
+    output_artifact_id: {type: uuid}
+    retry_count: {type: integer, default: 0}
+    updated_at: {type: utc_datetime}
+projects_from:
+  - event: GeneratedCodeRecorded
+    action: insert
+    map:
+      generated_code_id: event.generated_code_id
+      latest_phase: "recorded"
+      latest_status: "pending"
+      output_artifact_id: event.artifact_manifest_id
+      retry_count: 0
+      updated_at: event.recorded_at
+  - event: GeneratedCodeTestsPassed
+    action: update
+    where: {generated_code_id: event.generated_code_id}
+    map: {latest_phase: "test", latest_status: "passed", output_artifact_id: event.output_artifact_id, updated_at: event.recorded_at}
+  - event: GeneratedCodeTestsFailed
+    action: update
+    where: {generated_code_id: event.generated_code_id}
+    map: {latest_phase: "test", latest_status: "failed", output_artifact_id: event.output_artifact_id, retry_count: computed.increment_retry_count, updated_at: event.recorded_at}
+  - event: GeneratedCodeCompiled
+    action: update
+    where: {generated_code_id: event.generated_code_id}
+    map: {latest_phase: "compile", latest_status: "passed", output_artifact_id: event.output_artifact_id, updated_at: event.recorded_at}
+  - event: GeneratedCodeCompilationFailed
+    action: update
+    where: {generated_code_id: event.generated_code_id}
+    map: {latest_phase: "compile", latest_status: "failed", output_artifact_id: event.output_artifact_id, retry_count: computed.increment_retry_count, updated_at: event.recorded_at}
+  - event: GeneratedCodeLoaded
+    action: update
+    where: {generated_code_id: event.generated_code_id}
+    map: {latest_phase: "load", latest_status: "passed", output_artifact_id: event.output_artifact_id, updated_at: event.recorded_at}
+  - event: GeneratedCodeLoadFailed
+    action: update
+    where: {generated_code_id: event.generated_code_id}
+    map: {latest_phase: "load", latest_status: "failed", output_artifact_id: event.output_artifact_id, retry_count: computed.increment_retry_count, updated_at: event.recorded_at}
+scenarios:
+  projects_test_success:
+    given: ['GeneratedCodeTestsPassed{generated_code_id: generated-code-1}']
+    then: {rows: [{latest_phase: test, latest_status: passed}]}

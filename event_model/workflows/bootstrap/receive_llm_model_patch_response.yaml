@@ -1,0 +1,26 @@
+slice: receive_llm_model_patch_response
+type: translation
+workflow: bootstrap
+summary: Translates schema-valid model-patch structured output into a domain proposal command.
+owners: {context: Anything.EventModel}
+external_event:
+  boundary: llm_output_router
+  source: llm.model_patch_response
+  idempotency_key: external.request_id
+  fields:
+    request_id: {type: uuid}
+    defect_id: {type: uuid}
+    proposed_patch_artifact_id: {type: uuid}
+    affected_slices: {type: 'list[string]'}
+    reasoning_summary: {type: string!}
+translates_to:
+  command: RecordModelPatchProposal
+  fields:
+    request_id: {source: external.request_id}
+    defect_id: {source: external.defect_id}
+    proposed_patch_artifact_id: {source: external.proposed_patch_artifact_id}
+    affected_slices: {source: external.affected_slices}
+    reasoning_summary: {source: external.reasoning_summary}
+failure_handling: invalid_shape_routes_to_structured_output_rejection
+scenarios:
+  main_success: {given: ['LLMStructuredOutputAccepted{invocation_id: invocation-1}'], then: ['RecordModelPatchProposal{request_id: request-1}']}

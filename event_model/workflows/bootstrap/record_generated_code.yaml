@@ -1,0 +1,42 @@
+slice: record_generated_code
+type: state_change
+workflow: bootstrap
+summary: Records schema-valid generated artifact references, hashes, affected slices, and component decisions.
+owners:
+  context: Anything.CodeGeneration
+command:
+  name: RecordGeneratedCode
+  module: Anything.Workflows.Bootstrap.Commands.RecordGeneratedCode
+  fields:
+    generated_code_id: {type: uuid, source: system.uuid}
+    generation_request_id: {type: uuid, source: external.generation_request_id}
+    artifact_manifest_id: {type: uuid, source: external.artifact_manifest_id}
+    artifact_hash: {type: string!, source: external.artifact_hash}
+    affected_slices: {type: 'list[string]', source: external.affected_slices}
+    recorded_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.RecordGeneratedCodeAggregate
+  stream_id: generated_code_id
+  prefix: generated_code
+  pattern: single_aggregate_per_command
+  state:
+    recorded: {type: boolean, established_by: {GeneratedCodeRecorded: true}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+events:
+  - name: GeneratedCodeRecorded
+    version: 1
+    fields:
+      generated_code_id: {type: uuid, source: command.generated_code_id}
+      generation_request_id: {type: uuid, source: command.generation_request_id}
+      artifact_manifest_id: {type: uuid, source: command.artifact_manifest_id}
+      artifact_hash: {type: string!, source: command.artifact_hash}
+      affected_slices: {type: 'list[string]', source: command.affected_slices}
+      recorded_at: {type: utc_datetime, source: command.recorded_at}
+scenarios:
+  main_success:
+    given: ['LLMStructuredOutputAccepted{invocation_id: invocation-2}']
+    when: 'RecordGeneratedCode{generation_request_id: generation-request-1}'
+    then: ['GeneratedCodeRecorded{generation_request_id: generation-request-1}']

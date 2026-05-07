@@ -1,0 +1,55 @@
+slice: defect_status_view
+type: state_view
+workflow: bootstrap
+summary: Projects current defect status for the console.
+owners:
+  context: Anything.Defects
+  web: AnythingWeb.DefectConsoleLive
+read_model:
+  name: DefectStatus
+  table: defect_statuses
+  fields:
+    defect_id: {type: uuid, pk: true}
+    description: {type: string!}
+    expected_behavior: {type: string!}
+    status: {type: 'enum[filed, modeling, validating, generating, verifying, resolved, blocked]'}
+    last_event_at: {type: utc_datetime}
+projects_from:
+  - event: DefectFiled
+    action: insert
+    map:
+      defect_id: event.defect_id
+      description: event.description
+      expected_behavior: event.expected_behavior
+      status: "filed"
+      last_event_at: event.filed_at
+  - event: DefectResolved
+    action: update
+    where: {defect_id: event.defect_id}
+    map:
+      status: "resolved"
+      last_event_at: event.resolved_at
+  - event: DefectBlocked
+    action: update
+    where: {defect_id: event.defect_id}
+    map:
+      status: "blocked"
+      last_event_at: event.blocked_at
+screen:
+  name: DefectConsoleLive
+  uses_read_model: DefectStatus
+  bindings:
+    open_defects: read_model.DefectStatus.status
+    defect_description: read_model.DefectStatus.description
+components:
+  - component: components.organisms.defect_status_list
+    props:
+      defects: read_model.DefectStatus.rows
+    accessibility: status_list_announces_state
+scenarios:
+  projects_filed_defect:
+    given:
+      - 'DefectFiled{description: "Missing count", expected_behavior: "Count appears"}'
+    then:
+      rows:
+        - status: filed

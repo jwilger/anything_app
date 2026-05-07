@@ -1,0 +1,70 @@
+slice: verify_defect_resolution
+type: state_change
+workflow: bootstrap
+summary: Keeps the user in the loop before closing a defect.
+owners:
+  context: Anything.Defects
+screen:
+  name: DefectConsoleLive
+  inputs:
+    defect_id: {type: uuid, source: read_model.DefectStatus.defect_id}
+    decision: {type: 'enum[ready, resolved, rejected]', source: user}
+    reason: {type: string, source: user, optional: true}
+  actions:
+    mark_ready: {command: MarkDefectReadyForVerification, authorization: authenticated_user}
+    confirm_resolved: {command: ConfirmDefectResolved, authorization: authenticated_user}
+    reject_resolution: {command: RejectDefectResolution, authorization: authenticated_user}
+commands:
+  - name: MarkDefectReadyForVerification
+    module: Anything.Workflows.Bootstrap.Commands.VerifyDefectResolution
+  - name: ConfirmDefectResolved
+    module: Anything.Workflows.Bootstrap.Commands.VerifyDefectResolution
+  - name: RejectDefectResolution
+    module: Anything.Workflows.Bootstrap.Commands.VerifyDefectResolution
+command:
+  name: VerifyDefectResolution
+  module: Anything.Workflows.Bootstrap.Commands.VerifyDefectResolution
+  fields:
+    verification_id: {type: uuid, source: system.uuid}
+    defect_id: {type: uuid, source: screen.defect_id}
+    decision: {type: 'enum[ready, resolved, rejected]', source: screen.decision}
+    actor_id: {type: uuid, source: system.session.user_id}
+    reason: {type: string, source: screen.reason, optional: true}
+    decided_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.VerifyDefectResolutionAggregate
+  stream_id: defect_id
+  prefix: defect
+  pattern: single_aggregate_per_command
+  state:
+    status: {type: string, established_by: {DefectReadyForVerification: ready, DefectResolved: resolved, DefectResolutionRejected: rejected}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+events:
+  - name: DefectReadyForVerification
+    version: 1
+    when: command.decision == ready
+    fields: &verification_fields
+      verification_id: {type: uuid, source: command.verification_id}
+      defect_id: {type: uuid, source: command.defect_id}
+      actor_id: {type: uuid, source: command.actor_id}
+      decided_at: {type: utc_datetime, source: command.decided_at}
+  - name: DefectResolved
+    version: 1
+    when: command.decision == resolved
+    fields:
+      <<: *verification_fields
+      resolved_at: {type: utc_datetime, source: command.decided_at}
+  - name: DefectResolutionRejected
+    version: 1
+    when: command.decision == rejected
+    fields:
+      <<: *verification_fields
+      reason: {type: string, source: command.reason}
+scenarios:
+  main_success:
+    given: ['GeneratedCodeLoaded{generated_code_id: generated-code-1}']
+    when: 'ConfirmDefectResolved{defect_id: defect-1}'
+    then: ['DefectResolved{defect_id: defect-1}']

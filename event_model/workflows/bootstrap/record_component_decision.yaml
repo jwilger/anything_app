@@ -1,0 +1,54 @@
+slice: record_component_decision
+type: state_change
+workflow: bootstrap
+summary: Records search-first component reuse, creation, evolution, or deprecation decisions.
+owners:
+  context: Anything.DesignSystem
+command:
+  name: RecordComponentDecision
+  module: Anything.Workflows.Bootstrap.Commands.RecordComponentDecision
+  fields:
+    component_decision_id: {type: uuid, source: system.uuid}
+    component_id: {type: string!, source: external.component_id}
+    decision: {type: 'enum[selected, created, evolved, deprecated]', source: external.decision}
+    search_evidence_artifact_id: {type: uuid, source: external.search_evidence_artifact_id}
+    rationale: {type: string!, source: external.rationale}
+    decided_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.RecordComponentDecisionAggregate
+  stream_id: component_decision_id
+  prefix: component_decision
+  pattern: single_aggregate_per_command
+  state:
+    recorded: {type: boolean, established_by: {ExistingComponentSelected: true, ComponentCreated: true, ComponentEvolved: true, ComponentDeprecated: true}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+events:
+  - name: ExistingComponentSelected
+    version: 1
+    when: command.decision == selected
+    fields: &component_decision_fields
+      component_decision_id: {type: uuid, source: command.component_decision_id}
+      component_id: {type: string!, source: command.component_id}
+      search_evidence_artifact_id: {type: uuid, source: command.search_evidence_artifact_id}
+      rationale: {type: string!, source: command.rationale}
+      decided_at: {type: utc_datetime, source: command.decided_at}
+  - name: ComponentCreated
+    version: 1
+    when: command.decision == created
+    fields: *component_decision_fields
+  - name: ComponentEvolved
+    version: 1
+    when: command.decision == evolved
+    fields: *component_decision_fields
+  - name: ComponentDeprecated
+    version: 1
+    when: command.decision == deprecated
+    fields: *component_decision_fields
+scenarios:
+  main_success:
+    given: ['ComponentRegistrySearched{query: "timeline"}']
+    when: 'RecordComponentDecision{decision: "selected"}'
+    then: ['ExistingComponentSelected{component_id: components.organisms.event_timeline}']

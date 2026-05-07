@@ -1,0 +1,23 @@
+slice: receive_llm_stream_update
+type: translation
+workflow: bootstrap
+summary: Translates provider stream chunks into UI/progress status only, not authoritative domain commands.
+owners: {context: Anything.LLM}
+external_event:
+  boundary: llm_provider
+  source: llm.provider_stream_chunk
+  idempotency_key: external.chunk_id
+  fields:
+    invocation_id: {type: uuid}
+    chunk_id: {type: string!}
+    status_text: {type: string}
+    received_at: {type: utc_datetime}
+translates_to:
+  pubsub_topic: llm_invocation_status
+  command: none
+constraints:
+  authoritative_domain_state: false
+  stream_chunks_dispatch_domain_commands: false
+failure_handling: drop_duplicate_or_malformed_chunk
+scenarios:
+  main_success: {given: ['external.llm.provider_stream_chunk{invocation_id: invocation-1}'], then: ['PubSubStatusUpdated{invocation_id: invocation-1}']}

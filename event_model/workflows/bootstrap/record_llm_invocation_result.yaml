@@ -1,0 +1,69 @@
+slice: record_llm_invocation_result
+type: state_change
+workflow: bootstrap
+summary: Records completed, failed, rate-limited, or cancelled provider results without storing secrets in events.
+owners:
+  context: Anything.LLM
+command:
+  name: RecordLLMInvocationResult
+  module: Anything.Workflows.Bootstrap.Commands.RecordLLMInvocationResult
+  fields:
+    invocation_id: {type: uuid, source: external.invocation_id}
+    provider_request_id: {type: string, source: external.provider_request_id}
+    status: {type: 'enum[completed, failed, cancelled, rate_limited]', source: external.status}
+    output_schema: {type: string, source: external.output_schema}
+    structured_output: {type: map, source: external.structured_output}
+    raw_response_artifact_id: {type: uuid, source: external.raw_response_artifact_id, optional: true}
+    token_usage: {type: map, source: external.token_usage}
+    latency_ms: {type: integer, source: external.latency_ms}
+    estimated_cost: {type: decimal, source: external.estimated_cost, optional: true}
+    error: {type: map, source: external.error, optional: true}
+    received_at: {type: utc_datetime, source: system.clock}
+aggregate:
+  name: Anything.Workflows.Bootstrap.Aggregates.RecordLLMInvocationResultAggregate
+  stream_id: invocation_id
+  prefix: llm_invocation
+  pattern: single_aggregate_per_command
+  state:
+    terminal_status: {type: string, established_by: {LLMInvocationCompleted: completed, LLMInvocationFailed: failed, LLMInvocationRateLimited: rate_limited, LLMInvocationCancelled: cancelled}}
+router:
+  registration: command_self_registers
+  middleware: [validate_command, authorize_command]
+  lifespan: stop_after_command_event_or_error
+  command_idempotency_key: provider_request_id
+events:
+  - name: LLMInvocationCompleted
+    version: 1
+    when: command.status == completed
+    fields: &llm_result_fields
+      invocation_id: {type: uuid, source: command.invocation_id}
+      provider_request_id: {type: string, source: command.provider_request_id}
+      output_schema: {type: string, source: command.output_schema}
+      structured_output: {type: map, source: command.structured_output}
+      raw_response_artifact_id: {type: uuid, source: command.raw_response_artifact_id, optional: true}
+      token_usage: {type: map, source: command.token_usage}
+      latency_ms: {type: integer, source: command.latency_ms}
+      estimated_cost: {type: decimal, source: command.estimated_cost, optional: true}
+      received_at: {type: utc_datetime, source: command.received_at}
+  - name: LLMInvocationFailed
+    version: 1
+    when: command.status == failed
+    fields:
+      <<: *llm_result_fields
+      error: {type: map, source: command.error}
+  - name: LLMInvocationRateLimited
+    version: 1
+    when: command.status == rate_limited
+    fields:
+      <<: *llm_result_fields
+      error: {type: map, source: command.error}
+  - name: LLMInvocationCancelled
+    version: 1
+    when: command.status == cancelled
+    fields:
+      <<: *llm_result_fields
+scenarios:
+  main_success:
+    given: ['LLMInvocationRequested{invocation_id: invocation-1}']
+    when: 'RecordLLMInvocationResult{status: "completed"}'
+    then: ['LLMInvocationCompleted{invocation_id: invocation-1}']
