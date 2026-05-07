@@ -27,6 +27,8 @@
             docker-client
             docker-compose
             git
+            forgejo-mcp
+            tea
             gnumake
             gcc
             inotify-tools
