@@ -2,9 +2,9 @@
 
 ## Scope
 
-This baseline threat model covers the Phoenix 1.8 application shell introduced by issue #7 and the target LLM/code-generation architecture: HTTP routing, cookie-backed sessions, CSRF protection, LiveView socket connection setup, development-only tooling routes, production runtime secrets, local Postgres access, untrusted LLM/provider output, prompt/vector memory sensitivity, event payload sensitivity, generated code artifacts, hot-load boundaries, external API calls, command authorization, and validation/test/compile gates.
+This baseline threat model covers the Phoenix 1.8 application shell introduced by issue #7 and the target LLM/Gamelan code-generation architecture: HTTP routing, cookie-backed sessions, CSRF protection, LiveView socket connection setup, development-only tooling routes, production runtime secrets, local Postgres access, untrusted LLM/provider output, prompt/vector memory sensitivity, event payload sensitivity, generated code artifacts, hot-load boundaries, external API calls, command authorization, event-sourced agent invocation audit, and validation/test/compile gates.
 
-Future issues must update this document when they introduce authentication, authorization, Commanded dispatch, durable event payloads, LLM/provider calls, vector memory, generated code artifacts, background jobs, webhooks, or production deployment topology.
+Future issues must update this document when they introduce concrete authentication, authorization, Commanded dispatch, durable event payload tables, vector memory tables, generated code loading, background jobs, webhooks, federation gateways, or production deployment topology.
 
 ## Assumptions
 
@@ -121,18 +121,43 @@ Controls:
 - Completed provider responses must pass versioned structured-output validation before any domain command records or acts on them.
 - Streaming output is UI/progress only until a completed response validates successfully.
 - Invocation idempotency keys, retry budgets, timeouts, cost telemetry, and provider health projections must prevent duplicate or runaway external calls.
+- Provider responses are domain facts only after structured-output validation and internal command translation.
 
 ### Prompt Context And Vector Memory
 
 - Prompt context packages and vector memories can contain user defects, event-model details, code snippets, retrieved prior work, component metadata, and sensitivity labels.
 - Retrieval can surface stale, over-broad, or more-sensitive-than-needed content.
+- Vector memory retrieval results are evidence, not authoritative business state.
 
 Controls:
 
-- Every context item must record source, retrieval query, rank or score when vector-sourced, token estimate, sensitivity classification, and inclusion reason.
+- Every context item must record source, retrieval query, rank or score when vector-sourced, token estimate, sensitivity classification, redaction status, and inclusion reason.
 - Redaction policy must run before context leaves the system for a provider.
-- Retention for raw prompt/response artifacts must be bounded and may be disabled.
+- Items that fail redaction/sensitivity policy must be excluded or transformed with exclusion metadata.
 - Vector memory must not store raw secrets, provider keys, session data, production credentials, or unnecessary PII.
+
+### Prompt And Response Artifacts
+
+- Raw prompts and raw provider responses may be retained only as optional bounded artifacts.
+- Retained artifacts may include sensitive user, model, memory, or generated-code content.
+
+Controls:
+
+- Retention is policy-controlled and may be disabled.
+- Store artifact references, hashes, classifications, redaction status, retention expiry, and validation status in events; do not embed large raw bodies in events.
+- Restrict artifact access to authorized operator/debug workflows when those workflows exist.
+- Ensure replay-critical audit state does not depend on optional artifacts that may expire.
+
+### Event-Sourced Agent Invocation Audit
+
+- Agent sessions record invocation intent, policy/template versions, context manifests, provider request IDs, idempotency keys, retry attempts, check verdicts, validation results, token/cost telemetry summaries, and terminal outcomes as durable events.
+- Durable events can accidentally become long-lived PII stores if payloads are not minimized.
+
+Controls:
+
+- Events store metadata and references, not raw secrets, unnecessary PII, raw prompts, raw responses, or large generated source blobs.
+- Event payloads are additive durable contracts; compatibility changes require versioning/upcasting plans.
+- Projectors and handlers must be idempotent under replay and duplicate delivery.
 
 ### Generated Code Artifacts
 
@@ -141,6 +166,7 @@ Controls:
 
 Controls:
 
+- Structured output schemas reject arbitrary file writes, forbidden fields, and undeclared provider payloads.
 - Generated source content is stored as artifact references with hashes, retention policy, and sensitivity classification; events store references and metadata rather than large source blobs.
 - Artifact storage must enforce read/write authorization, tenant/user scoping, path traversal prevention, retention/deletion policy, and hash verification before use.
 - Stored generated artifacts must not be directly served or executed; retrieval must go through an authorized context boundary that verifies metadata, sensitivity classification, and content hash.
@@ -174,6 +200,19 @@ Controls:
 - Required implementation gates after the Mix project exists are focused `mix test`, `mix format --check-formatted`, `MIX_ENV=test mix compile --warnings-as-errors --force`, `MIX_ENV=prod mix compile --warnings-as-errors --force`, `mix test --warnings-as-errors`, `mix dialyzer --halt-exit-status` once configured, and configured static/security checks such as `mix credo --strict` and `mix sobelow`.
 - Failed gates must block promotion of generated or manually written behavior; bypasses require an explicit documented decision.
 
+### Gamelan Session And Federation Boundaries
+
+- Agent and network sessions run as event-sourced folds with source effects outside the pure fold.
+- Cross-session, cross-node, or future A2A/federated communication can carry generated intent and sensitive context across trust boundaries.
+
+Controls:
+
+- Keep fold execution sequential per session, append events durably, and handle duplicate delivery idempotently.
+- Use checks on inbound and outbound connection boundaries. Safety-critical checks fail closed, including redaction, structured-output validation, generated-code safety, tool approval, provider response guardrails, command authorization, trust boundaries, and gateway policy.
+- Treat check-source errors, unavailability, and timeouts as held or terminal blocked/rejected states, never as implicit approval.
+- Prevent unchecked provider, tool, or external-agent data from advancing while a check is unresolved.
+- Route external agents through gateways rather than direct access to internal sessions.
+
 ## Production Hardening Decisions And Follow-Up Work
 
 - **Secure session cookies:** before authentication or sensitive session state, configure production cookies to require HTTPS and decide whether session encryption is required in addition to signing.
@@ -185,4 +224,4 @@ Controls:
 
 ## Current Non-Goals
 
-The baseline does not yet include users, authentication, Commanded aggregates/events, LLM provider calls, generated code loading, vector memory, webhooks, background jobs, or production deployment hardening beyond generated Phoenix defaults. Those features must extend this threat model with implementation-specific controls and tests when implemented.
+The baseline does not yet include users, authentication, concrete command authorization, implemented Commanded aggregates/events, concrete vector memory tables, generated code hot-loading, webhooks, background jobs, federation gateways, or production deployment hardening beyond generated Phoenix defaults. Those features must extend this threat model with implementation-specific controls and tests when implemented.
