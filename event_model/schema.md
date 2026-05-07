@@ -25,6 +25,16 @@ first, but they must not contradict this contract.
   entry and its accessibility, composition, search, and evolution contract.
 - `memory`: a slice that records or retrieves vector/read memory with source
   traceability, sensitivity classification, retention, and retrieval rules.
+- `session`: a Gamelan runtime boundary that owns a sequential mailbox, pure
+  transducer fold, source connections, checks, pending request tracking, and an
+  event log that can rebuild session state.
+- `transducer`: a pure state machine inside a session with `project` and
+  `generate` behavior, declared state slots, typed emitted requests, and no I/O.
+- `source`: an effect boundary that dispatches typed requests and returns typed
+  results, such as an LLM provider, tool executor, artifact store, vector search,
+  check source, human approval flow, or another session.
+- `check`: an inbound or outbound hold on a connection that returns approve,
+  reject, or transform before unchecked data can advance.
 - `field source`: a deterministic reference showing where a modeled command field,
   event field, read-model field, dispatch field, component prop, or memory field gets
   its value.
@@ -72,13 +82,14 @@ Common field rules:
 
 - `slice` is globally unique within a workflow and uses snake_case.
 - `type` is one of `state_change`, `state_view`, `automation`, `translation`,
-  `design_system`, or `memory`.
+  `design_system`, `memory`, or `session`.
 - `workflow` names the containing workflow directory.
 - `summary` describes product intent, not implementation mechanics.
 - `owners.context` names the Phoenix context boundary when the slice maps to runtime
   behavior.
 - `owners.web`, `owners.projection`, `owners.process_manager`, `owners.component`,
-  or `owners.external_boundary` may be added when the slice touches those boundaries.
+  `owners.session`, or `owners.external_boundary` may be added when the slice
+  touches those boundaries.
 
 ## Slice Type Contracts
 
@@ -415,6 +426,107 @@ Required rules:
 - Retrieval results are prompt evidence, never authoritative business state.
 - Embedding/index failures have modeled retry or terminal failure behavior.
 
+### `session`
+
+Session slices declare Gamelan runtime boundaries, pure transducer composition,
+source interfaces, connection policy, checks, and replay scenarios.
+
+Required shape:
+
+```yaml
+type: session
+session:
+  name: EventModeler
+  kind: agent
+  stream_id: workflow.bootstrap.session.event_modeler
+  mailbox:
+    processing: sequential
+    durability: append_before_fold
+    idempotency_key: event.event_id
+    duplicate_handling: ignore_after_recorded
+  transducers:
+    - name: ContextAssembler
+      implementation: modeled
+      state_slots:
+        context_package:
+          type: map
+      reads:
+        - slot.message_history
+        - read_model.CurrentEventModel
+      projects:
+        - event: DefectFiled
+          updates:
+            context_package: computed.context_package
+      generates:
+        - request: LLMInvocationRequest
+          when: state.context_package.ready
+          fields:
+            provider_request_id: system.uuid
+            context_manifest: state.context_package.manifest
+  sources:
+    - name: llm_provider
+      adapter: Anything.LLM.Provider
+      capabilities:
+        - structured_output
+        - streaming
+      interface:
+        dispatch: LLMInvocationRequest
+        result: LLMInvocationResult
+        discover: ProviderCapabilities
+  connections:
+    - name: invoke_model_patch_llm
+      source: llm_provider
+      request: LLMInvocationRequest
+      result: LLMInvocationResult
+      pending_key: request.provider_request_id
+      policy:
+        provider_policy: model_patch_default.v1
+        capability_scope: llm.model_patch
+        retry: bounded
+      checks:
+        outbound:
+          - redaction_check
+        inbound:
+          - structured_output_check
+  checks:
+    - name: structured_output_check
+      direction: inbound
+      source: schema_validator
+      intercepts: LLMInvocationResult
+      verdicts: [approve, reject, transform]
+      on_unavailable: fail_closed
+      on_timeout: fail_closed
+scenarios:
+  replay_does_not_duplicate_provider_call:
+    given:
+      - DefectFiled
+      - replay.duplicate(DefectFiled)
+    then:
+      - request.LLMInvocationRequest.count(1)
+```
+
+Required rules:
+
+- `session.mailbox.processing` is `sequential`, and durability/idempotency are
+  explicit.
+- Every transducer declares owned `state_slots`, read dependencies in `reads`,
+  projected events or inputs, generated request types, and generated request field
+  sources.
+- Transducer state slots are disjoint across the session. Read dependencies must
+  point to declared slots, read models, memory, events, or computed values.
+- Every generated request resolves to exactly one connection unless the slice
+  declares a deterministic routing policy.
+- Every source declares typed `dispatch`, `result`, and `discover`/capability
+  metadata.
+- Connection policy declares capability scope, retry behavior, provider/tool/session
+  policy references, and any authorization or budget policy needed by the source.
+- External requests declare `pending_key`; matching results declare how the pending
+  key clears.
+- Checks declare direction, source, intercept type, verdicts, and unavailable,
+  timeout, and error behavior. Safety-critical checks fail closed.
+- Replay scenarios cover duplicate delivery and at least one successful request/result
+  round trip.
+
 ## Field Source Syntax
 
 Field sources are strings with a namespace prefix and path:
@@ -439,6 +551,8 @@ Allowed source namespaces:
 - `projection.*`: deterministic projection-local outputs.
 - `component.*`: props/slots from declared component references.
 - `memory.*`: structured memory records declared by memory slices.
+- `slot.*` or `state.*`: declared transducer/session state slots in a `session`
+  slice.
 - `vector.<MemoryName>.search`: vector memory retrieval evidence.
 - `artifact.*`: bounded artifact metadata or content references.
 - `literal.<value>`: literal/default value where the value is safe to store in the
@@ -565,6 +679,38 @@ Rules:
   policy, and inclusion reason.
 - Prompt context includes source traceability, rank/score, token estimate, sensitivity
   classification, and redaction status for each memory result.
+
+## Gamelan Session Completeness
+
+Agentic workflow slices additionally declare enough Gamelan runtime metadata for
+deterministic validation before code generation or provider invocation:
+
+- session name, type (`agent` or `network`), event stream identity, and owning
+  context;
+- mailbox contract: sequential processing, durable event append, idempotency key,
+  and duplicate handling;
+- transducers with declared state slots, read dependencies, `project` inputs,
+  `generate` outputs, emitted request types, and slot ownership;
+- source interfaces with `dispatch`, `discover`, and `interface` contracts, typed
+  request/result pairs, and provider/tool/session adapter identity;
+- connection topology linking emitted request types to sources, result types,
+  pending keys, retry policy, capability scope, provider/tool/session policy
+  references, and optional inbound or outbound checks;
+- check definitions with intercept direction, check source, verdict shape
+  (`approve`, `reject`, or `transform`), failure mode, and fail-closed policy where
+  the check protects a trust boundary;
+- product/gate/hold expectations: every event is folded by every transducer,
+  pending requests are gated until matching results arrive, and held data cannot
+  advance while checks are unresolved;
+- replay scenarios proving state can rebuild from the event log and duplicate
+  delivery does not emit duplicate external requests.
+
+The event model is incomplete when an agentic slice emits an undeclared request,
+references an unknown source result, omits transducer read dependencies, declares
+overlapping state-slot ownership, omits connection policy or capability scope,
+omits a pending key for an external request, stores replay-critical state only in
+projections or artifacts, or allows unchecked LLM/tool/gateway data to advance
+without a declared check or explicit rationale.
 
 ## Event Compatibility Rules
 
