@@ -24,6 +24,8 @@ These decisions verify the planning assumptions and guide dependent work.
 - Raw prompts and provider responses are retained only as optional bounded artifacts with hashes, retention, and sensitivity classification. Retention may be disabled.
 - Streaming LLM output is UI/progress only until a completed response passes schema validation and is translated through a command.
 
+ARCH-1 establishes these target architecture concerns as first-class and non-optional for dependent work: runtime boundaries, the event model as the architectural source of truth, the bootstrap workflow package, strict completeness validation, Commanded/Postgres/projection/vector-memory storage, daisyUI-backed internal components, code-generation safety, security/trust boundaries, and verification gates.
+
 ## Runtime Architecture
 
 The application runtime uses Phoenix and Commanded boundaries deliberately.
@@ -40,7 +42,7 @@ The application runtime uses Phoenix and Commanded boundaries deliberately.
 
 ## Event Model As Source Of Truth
 
-The event model is a first-class artifact, not a generated summary. Canonical files live under `event_model/` as one YAML file per slice.
+The event model is the source of architectural truth for behavior, generated code, validation, and LLM context. It is a first-class artifact, not a generated summary. Canonical files live under `event_model/` as one YAML file per slice.
 
 Each slice can declare commands, events, aggregate state evolution, projections, screens, components, automations, translations, LLM invocations, memory references, and scenarios. The LLM proposes event model patches before production code changes. Deterministic validators check patched models before code generation. Code generators and prompts consume only validated models.
 
