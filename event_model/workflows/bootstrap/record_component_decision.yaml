@@ -15,7 +15,8 @@ command:
     rationale: {type: string!, source: external.rationale}
     decided_at: {type: utc_datetime, source: system.clock}
 aggregate:
-  name: Anything.Workflows.Bootstrap.Aggregates.RecordComponentDecisionAggregate
+  name: RecordComponentDecisionAggregate
+  module: Anything.Workflows.Bootstrap.Aggregates.RecordComponentDecisionAggregate
   stream_id: component_decision_id
   prefix: component_decision
   pattern: single_aggregate_per_command
@@ -25,6 +26,7 @@ router:
   registration: command_self_registers
   middleware: [validate_command, authorize_command]
   lifespan: stop_after_command_event_or_error
+  command_idempotency_key: search_evidence_artifact_id
 events:
   - name: ExistingComponentSelected
     version: 1

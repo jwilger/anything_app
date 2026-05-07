@@ -14,7 +14,8 @@ command:
     requested_by: {type: uuid, source: system.session.user_id}
     requested_at: {type: utc_datetime, source: system.clock}
 aggregate:
-  name: Anything.Workflows.Bootstrap.Aggregates.RequestModelPatchAggregate
+  name: RequestModelPatchAggregate
+  module: Anything.Workflows.Bootstrap.Aggregates.RequestModelPatchAggregate
   stream_id: request_id
   prefix: model_patch_request
   pattern: single_aggregate_per_command

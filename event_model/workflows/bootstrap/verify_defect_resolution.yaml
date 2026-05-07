@@ -32,7 +32,8 @@ command:
     reason: {type: string, source: screen.reason, optional: true}
     decided_at: {type: utc_datetime, source: system.clock}
 aggregate:
-  name: Anything.Workflows.Bootstrap.Aggregates.VerifyDefectResolutionAggregate
+  name: VerifyDefectResolutionAggregate
+  module: Anything.Workflows.Bootstrap.Aggregates.VerifyDefectResolutionAggregate
   stream_id: defect_id
   prefix: defect
   pattern: single_aggregate_per_command

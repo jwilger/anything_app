@@ -13,7 +13,8 @@ command:
     reason: {type: string!, source: command_caller.reason}
     blocked_at: {type: utc_datetime, source: system.clock}
 aggregate:
-  name: Anything.Workflows.Bootstrap.Aggregates.MarkDefectBlockedAggregate
+  name: MarkDefectBlockedAggregate
+  module: Anything.Workflows.Bootstrap.Aggregates.MarkDefectBlockedAggregate
   stream_id: defect_id
   prefix: defect
   pattern: single_aggregate_per_command

@@ -20,7 +20,8 @@ command:
     error: {type: map, source: external.error, optional: true}
     received_at: {type: utc_datetime, source: system.clock}
 aggregate:
-  name: Anything.Workflows.Bootstrap.Aggregates.RecordLLMInvocationResultAggregate
+  name: RecordLLMInvocationResultAggregate
+  module: Anything.Workflows.Bootstrap.Aggregates.RecordLLMInvocationResultAggregate
   stream_id: invocation_id
   prefix: llm_invocation
   pattern: single_aggregate_per_command

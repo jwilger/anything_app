@@ -15,7 +15,8 @@ command:
     errors: {type: 'list[completeness_error]', source: computed.completeness_result.errors}
     checked_at: {type: utc_datetime, source: system.clock}
 aggregate:
-  name: Anything.Workflows.Bootstrap.Aggregates.RecordCompletenessCheckResultAggregate
+  name: RecordCompletenessCheckResultAggregate
+  module: Anything.Workflows.Bootstrap.Aggregates.RecordCompletenessCheckResultAggregate
   stream_id: check_id
   prefix: completeness_check
   pattern: single_aggregate_per_command

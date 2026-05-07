@@ -147,6 +147,10 @@ Required rules:
 
 - Every command has exactly one owning aggregate unless the slice explicitly declares
   an ADR-approved exception.
+- `command.module` names the command module that owns field validation,
+  authorization metadata, handler entrypoint, and router self-registration.
+- `aggregate.name` is the modeled aggregate identity used for ownership checks, while
+  `aggregate.module` names the concrete aggregate module paired with the command.
 - `aggregate.pattern` is `single_aggregate_per_command` for bootstrap slices.
 - `aggregate.stream_id` references a command, system, session, external, or computed
   source that is stable for all retries of the command.
@@ -154,8 +158,13 @@ Required rules:
   dispatches, or scenarios.
 - Each aggregate state field declares `established_by` and may declare `updated_by`.
 - Events are durable contracts and must include `name`, `version`, and typed `fields`.
-- Command validation and authorization run before aggregate execution.
-- Retried/external/automation commands declare `router.command_idempotency_key`.
+- `router.registration` is `command_self_registers`; bootstrap commands contribute
+  their own routing metadata instead of depending on a hand-maintained central switch.
+- `router.middleware` order is mandatory: `validate_command` precedes
+  `authorize_command`, and both precede aggregate execution.
+- Retried, external-boundary, or automation commands declare
+  `router.command_idempotency_key` using a stable command field so duplicate
+  deliveries do not create duplicate effects.
 - At least one `main_success` GWT scenario is required, plus validation and invariant
   scenarios for required fields and decision branches.
 

@@ -18,7 +18,8 @@ command:
     applied_by: {type: uuid, source: system.session.user_id}
     applied_at: {type: utc_datetime, source: system.clock}
 aggregate:
-  name: Anything.Workflows.Bootstrap.Aggregates.ApplyModelPatchAggregate
+  name: ApplyModelPatchAggregate
+  module: Anything.Workflows.Bootstrap.Aggregates.ApplyModelPatchAggregate
   stream_id: patch_id
   prefix: model_patch
   pattern: single_aggregate_per_command

@@ -255,12 +255,14 @@ The event model must eventually be able to declare session definitions, transduc
 
 Commanded usage follows a single aggregate-per-command mapping, adapted from `commanded_boilerplate` after compatibility review.
 
-- Each command module owns its command struct, validation, authorization, handler, and aggregate decision logic.
-- Commands self-register with the router by convention.
-- Validation middleware and authorization middleware run before aggregate execution.
+- Each command module owns its command struct, typed field contract, validation, authorization, handler, and one command-specific aggregate module for decision logic.
+- The mandatory command module shape is `Anything.<Context>.Commands.<CommandName>` or the workflow-local equivalent under `Anything.Workflows.<Workflow>.Commands.<CommandName>`. The command module declares fields and sources, delegates decisions to its paired aggregate module, and exposes self-registration metadata consumed by the router.
+- Each command maps to exactly one aggregate module declared separately from the aggregate identity/name. The aggregate declares stream identifier field, stream prefix, `single_aggregate_per_command` pattern, state evolution, and event handlers needed by that command. Shared workflow state is represented by streams, projections, and process managers rather than a single shared aggregate.
+- Commands self-register with the router by convention using `router.registration: command_self_registers`; there is no hand-maintained central dispatcher for bootstrap command ownership.
+- Router middleware order is strict: `validate_command` runs before `authorize_command`, and both run before aggregate execution. Authorization remains explicit at the command boundary rather than hidden in handlers or projectors.
 - The default lifecycle is `stop_after_command_event_or_error` unless explicit retention is justified.
-- Shared workflow state is represented by streams, projections, and process managers rather than a single shared aggregate.
-- Event model slices must declare command module, command fields and sources, aggregate name, aggregate stream id, stream prefix, `single_aggregate_per_command` pattern, router registration, middleware order, lifespan, events, and idempotency key where relevant.
+- Event model `state_change` slices must declare `command.module`, command fields and sources, `aggregate.name`, `aggregate.module`, `aggregate.stream_id`, `aggregate.prefix`, `aggregate.pattern`, `router.registration`, ordered `router.middleware`, `router.lifespan`, emitted events, aggregate state evolution, scenarios, and `router.command_idempotency_key` whenever external/retry input could otherwise duplicate command effects.
+- Strict completeness validates this ownership contract before code generation, including missing metadata, incorrect aggregate pattern, non-self-registering router declarations, and middleware ordering.
 
 Any deviation from this convention is ADR-level debt and needs migration tests.
 

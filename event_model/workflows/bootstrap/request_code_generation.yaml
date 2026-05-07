@@ -14,7 +14,8 @@ command:
     affected_slices: {type: 'list[string]', source: computed.affected_slices}
     requested_at: {type: utc_datetime, source: system.clock}
 aggregate:
-  name: Anything.Workflows.Bootstrap.Aggregates.RequestCodeGenerationAggregate
+  name: RequestCodeGenerationAggregate
+  module: Anything.Workflows.Bootstrap.Aggregates.RequestCodeGenerationAggregate
   stream_id: generation_request_id
   prefix: code_generation
   pattern: single_aggregate_per_command

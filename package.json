@@ -2,7 +2,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check:event-model": "node scripts/check_event_model_completeness.mjs"
+    "check:event-model": "node scripts/check_event_model_completeness.mjs",
+    "test:event-model-contract": "node scripts/check_event_model_completeness_contract_test.mjs"
   },
   "devDependencies": {
     "yaml": "^2.8.1"

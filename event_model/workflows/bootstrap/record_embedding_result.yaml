@@ -16,7 +16,8 @@ command:
     error: {type: map, source: external.error, optional: true}
     recorded_at: {type: utc_datetime, source: system.clock}
 aggregate:
-  name: Anything.Workflows.Bootstrap.Aggregates.RecordEmbeddingResultAggregate
+  name: RecordEmbeddingResultAggregate
+  module: Anything.Workflows.Bootstrap.Aggregates.RecordEmbeddingResultAggregate
   stream_id: embedding_result_id
   prefix: embedding_result
   pattern: single_aggregate_per_command
