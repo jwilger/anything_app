@@ -126,7 +126,59 @@ LLM invocation projections include prompt template versions, context package man
 
 The UI starts with Phoenix 1.8 defaults, Tailwind 4, and daisyUI. Internal compile-time Phoenix components capture recurring app-specific UI needs. Atomic Design is used as vocabulary: atoms, molecules, organisms, and templates.
 
-Existing components are searched first. New components or component evolution require registry search evidence and justification. Component registry entries are indexed in vector memory and validated by the event model. Atoms encapsulate raw daisyUI/Tailwind choices. Higher-level components compose atoms and molecules and avoid raw style drift. Accessibility requirements are validation rules, not visual afterthoughts.
+### daisyUI Usage
+
+daisyUI is the default visual primitive library for generated and hand-written Phoenix components. Raw daisyUI and Tailwind class choices belong at the lowest practical component layer so higher-level components express intent through props, slots, and composition instead of repeating class strings.
+
+- Atoms may wrap daisyUI primitives such as `btn`, `input`, `alert`, `badge`, `card`, `modal`, `steps`, `timeline`, and `menu` when the wrapper adds product naming, validation, accessibility, or variant constraints.
+- Molecules and organisms compose atoms and may expose limited semantic variants, but they must not introduce unrelated ad hoc Tailwind class bundles when an existing atom or daisyUI primitive fits.
+- Templates define layout structure for screens and workflows. They may use Tailwind grid/flex utilities for layout, but reusable visual behavior still belongs in atoms, molecules, or organisms.
+- Direct daisyUI use in LiveViews is acceptable only for one-off Phoenix scaffold/default markup before a registry entry exists. When the shape recurs or is generated from the event model, promote it into the registry.
+
+### Internal Compile-Time Component Layers
+
+The internal component library is compile-time Phoenix component code owned by `AnythingWeb`, not runtime data-driven component execution. Registry entries describe and validate those components; they do not execute arbitrary stored markup.
+
+- **Atoms** encapsulate a single control, label, status marker, icon treatment, or daisyUI primitive with product variants and accessibility defaults.
+- **Molecules** combine atoms into small reusable interactions such as search boxes, defect summary rows, filter bars, timeline items, or provider status indicators.
+- **Organisms** compose molecules and atoms into domain sections such as defect timelines, model-patch review panels, completeness-check result lists, or generated-artifact summaries.
+- **Templates** arrange organisms for a screen or workflow step while keeping data loading, commands, and navigation in LiveViews and contexts.
+
+Components stay deterministic and side-effect free. LiveViews and contexts own data retrieval, command dispatch, authorization, PubSub subscriptions, and navigation. Components receive explicit assigns and slots, render accessible markup, and emit normal Phoenix events through their caller.
+
+### Search-First Component Registry
+
+Existing components are searched first. New components or component evolution require registry search evidence and justification. Component registry entries are indexed in vector memory and validated by the event model. Search evidence records the query, relevant candidates, reuse decision, and reason reuse was not sufficient.
+
+The registry supports two related uses:
+
+- **Design-time lookup:** LLM/code-generation and human implementation search the registry before proposing UI changes.
+- **Validation:** event-model `design_system` slices prove that screen/component references point to existing registry entries or same-patch proposed entries with search evidence.
+
+Registry entries include component name, module, atomic level, purpose, props, slots, composition dependencies, accepted daisyUI classes or variants, accessibility contract, search keywords, sensitivity classification when rendered data may contain user content, and evolution history.
+
+### Creation And Evolution Rules
+
+A new component is allowed when registry search finds no compatible existing component, when adapting an existing component would blur its purpose, or when accessibility/validation needs require a clearer semantic boundary. Component evolution is preferred over duplication when the existing component has the same purpose and can accept an additive prop, slot, variant, or composition change without breaking callers.
+
+Component changes follow these rules:
+
+- Reuse compatible existing components before creating new entries.
+- Keep names domain-specific and stable; avoid generic wrappers that only rename daisyUI classes.
+- Add props, slots, and variants additively unless every caller is updated in the same patch.
+- Preserve accessibility semantics across variants.
+- Record replaced, renamed, or deprecated registry entries so generated code can migrate references deliberately.
+- Treat component entry removal as a compatibility change that requires model patch validation and caller updates.
+
+### Accessibility Contract
+
+Accessibility requirements are validation rules, not visual afterthoughts. Every registry entry declares the semantic role or native element strategy, keyboard interaction, focus behavior, visible label or screen-reader label, state announcements for dynamic content, and color/contrast considerations for status or error states.
+
+Interactive components must define disabled/loading/error behavior and keyboard behavior. Components that render user or LLM-provided text must preserve escaping and declare whether truncation, summaries, or expandable details are required. Components that render workflow status must expose status text independently from color or icon shape.
+
+### Validation Expectations
+
+The event model validator checks component references, registry search evidence, Atomic Design level, prop and slot sources, composition dependencies, daisyUI boundaries, accessibility fields, and compatibility of component evolution. A screen or generated UI patch is incomplete when it references an unknown component, bypasses search-first evidence for a new component, omits required accessibility fields, uses raw daisyUI/Tailwind classes above the atom layer without justification, or binds a component prop to an undeclared read-model/query/source field.
 
 ## Security And Trust Boundaries
 

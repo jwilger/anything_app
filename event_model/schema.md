@@ -304,23 +304,33 @@ component:
   props:
     events:
       type: list
+      required: true
       source: read_model.DefectTimeline.events
   slots:
     empty_state:
       optional: true
   composed_from:
+    - DefectTimelineRail
     - TimelineItem
   daisy_ui:
-    allowed_classes:
-      - timeline
+    boundary: atom_wrapped
+    wrapped_by: DefectTimelineRail
   accessibility:
     role: list
     keyboard: not_applicable
     screen_reader_label: Defect timeline
+    focus_behavior: not_applicable
+    status_text_required: true
 registry:
   search_first: true
   search_evidence: vector.ComponentRegistry.search{query: "timeline status"}
+  candidates_considered:
+    - ExistingTimeline
   reuse_policy: prefer_existing_compatible_component
+  reuse_decision: create_new_component
+  reuse_rationale: Existing timeline lacks defect workflow status semantics.
+  evolution:
+    compatibility: additive
 scenarios:
   renders_events:
     given:
@@ -338,6 +348,23 @@ Required rules:
 - Accessibility requirements are validation inputs, not optional notes.
 - Raw Tailwind/daisyUI choices are encapsulated at the lowest practical Atomic Design
   level.
+- `component.atomic_level` is one of `atom`, `molecule`, `organism`, or `template`.
+- `component.daisy_ui.boundary` declares whether daisyUI classes are `atom_wrapped`,
+  `layout_only`, or `justified_direct_use`. Direct use above the atom layer requires
+  a justification in the registry rationale.
+- `registry.search_first` is true for new components and for component evolution that
+  changes public props, slots, visual variants, or composition dependencies.
+- `registry.search_evidence`, `candidates_considered`, `reuse_decision`, and
+  `reuse_rationale` are required when introducing a component or choosing not to reuse
+  an existing compatible component.
+- `registry.evolution.compatibility` records whether a change is `additive`,
+  `breaking_with_callers_updated`, `rename_with_migration`, or `deprecation`.
+- Accessibility fields include role/native semantics, keyboard behavior, focus
+  behavior, visible or screen-reader label strategy, and status/error announcement
+  requirements where applicable.
+- Validation fails when a component references unknown composed components, undeclared
+  prop or slot sources, missing accessibility fields, missing search-first evidence,
+  or raw daisyUI/Tailwind use outside the declared boundary.
 
 ### `memory`
 
