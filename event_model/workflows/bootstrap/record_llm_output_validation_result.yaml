@@ -15,7 +15,8 @@ command:
     errors: {type: 'list[map]', source: computed.validation.errors}
     validated_at: {type: utc_datetime, source: system.clock}
 aggregate:
-  name: Anything.Workflows.Bootstrap.Aggregates.RecordLLMOutputValidationResultAggregate
+  name: RecordLLMOutputValidationResultAggregate
+  module: Anything.Workflows.Bootstrap.Aggregates.RecordLLMOutputValidationResultAggregate
   stream_id: validation_id
   prefix: llm_output_validation
   pattern: single_aggregate_per_command

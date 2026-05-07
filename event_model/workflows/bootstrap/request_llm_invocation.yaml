@@ -19,7 +19,8 @@ command:
     idempotency_key: {type: string!, source: computed.invocation_key}
     requested_at: {type: utc_datetime, source: system.clock}
 aggregate:
-  name: Anything.Workflows.Bootstrap.Aggregates.RequestLLMInvocationAggregate
+  name: RequestLLMInvocationAggregate
+  module: Anything.Workflows.Bootstrap.Aggregates.RequestLLMInvocationAggregate
   stream_id: invocation_id
   prefix: llm_invocation
   pattern: single_aggregate_per_command

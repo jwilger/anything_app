@@ -24,7 +24,8 @@ command:
     filed_by: {type: uuid, source: system.session.user_id}
     filed_at: {type: utc_datetime, source: system.clock}
 aggregate:
-  name: Anything.Workflows.Bootstrap.Aggregates.FileDefectAggregate
+  name: FileDefectAggregate
+  module: Anything.Workflows.Bootstrap.Aggregates.FileDefectAggregate
   stream_id: defect_id
   prefix: defect
   pattern: single_aggregate_per_command

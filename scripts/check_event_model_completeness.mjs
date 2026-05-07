@@ -253,6 +253,43 @@ function checkAggregateConsistency(slices, errors) {
   }
 }
 
+function checkSingleAggregateCommandOwnership(slices, errors) {
+  for (const slice of slices.filter((s) => s.type === "state_change" && s.command)) {
+    for (const [path, value] of [
+      ["command.module", slice.command.module],
+      ["aggregate.module", slice.aggregate?.module],
+      ["aggregate.name", slice.aggregate?.name],
+      ["aggregate.stream_id", slice.aggregate?.stream_id],
+      ["aggregate.prefix", slice.aggregate?.prefix],
+      ["router.lifespan", slice.router?.lifespan]
+    ]) {
+      if (!value) {
+        errors.push({ type: "single_aggregate_command_metadata_missing", slice: slice.name, file: slice.__file, path });
+      }
+    }
+
+    if (slice.aggregate?.pattern !== "single_aggregate_per_command") {
+      errors.push({ type: "single_aggregate_command_metadata_invalid", slice: slice.name, file: slice.__file, path: "aggregate.pattern", expected: "single_aggregate_per_command" });
+    }
+
+    if (slice.router?.registration !== "command_self_registers") {
+      errors.push({ type: "single_aggregate_command_metadata_invalid", slice: slice.name, file: slice.__file, path: "router.registration", expected: "command_self_registers" });
+    }
+
+    const middleware = asArray(slice.router?.middleware);
+    const validateIndex = middleware.indexOf("validate_command");
+    const authorizeIndex = middleware.indexOf("authorize_command");
+    if (validateIndex === -1 || authorizeIndex === -1 || authorizeIndex < validateIndex) {
+      errors.push({ type: "single_aggregate_command_metadata_invalid", slice: slice.name, file: slice.__file, path: "router.middleware", expected: ["validate_command", "authorize_command"] });
+    }
+
+    const usesExternalInput = entries(commandFieldMap(slice)).some(([, spec]) => typeof spec?.source === "string" && spec.source.startsWith("external."));
+    if (usesExternalInput && !slice.router?.command_idempotency_key) {
+      errors.push({ type: "single_aggregate_command_metadata_missing", slice: slice.name, file: slice.__file, path: "router.command_idempotency_key" });
+    }
+  }
+}
+
 function main() {
   const slices = readSlices(root);
   const errors = [];
@@ -262,6 +299,7 @@ function main() {
   checkDispatches(slices, errors);
   checkReferenceIntegrity(slices, errors);
   checkAggregateConsistency(slices, errors);
+  checkSingleAggregateCommandOwnership(slices, errors);
 
   if (errors.length === 0) {
     console.log(`ok - ${slices.length} slices checked`);

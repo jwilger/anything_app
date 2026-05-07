@@ -29,7 +29,8 @@ command:
     rationale: {type: string, source: screen.rationale, optional: true}
     reviewed_at: {type: utc_datetime, source: system.clock}
 aggregate:
-  name: Anything.Workflows.Bootstrap.Aggregates.ReviewModelPatchAggregate
+  name: ReviewModelPatchAggregate
+  module: Anything.Workflows.Bootstrap.Aggregates.ReviewModelPatchAggregate
   stream_id: patch_id
   prefix: model_patch
   pattern: single_aggregate_per_command

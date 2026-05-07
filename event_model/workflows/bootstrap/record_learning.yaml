@@ -15,7 +15,8 @@ command:
     sensitivity: {type: string!, source: external.sensitivity}
     recorded_at: {type: utc_datetime, source: system.clock}
 aggregate:
-  name: Anything.Workflows.Bootstrap.Aggregates.RecordLearningAggregate
+  name: RecordLearningAggregate
+  module: Anything.Workflows.Bootstrap.Aggregates.RecordLearningAggregate
   stream_id: learning_id
   prefix: learning
   pattern: single_aggregate_per_command
@@ -25,6 +26,7 @@ router:
   registration: command_self_registers
   middleware: [validate_command, authorize_command]
   lifespan: stop_after_command_event_or_error
+  command_idempotency_key: content_artifact_id
 events:
   - name: LearningRecorded
     version: 1
